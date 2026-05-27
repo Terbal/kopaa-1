@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       phaser:
-        specifier: ^4.1.0
-        version: 4.1.0
+        specifier: 3.70.0
+        version: 3.70.0
     devDependencies:
       vite:
         specifier: ^8.0.12
@@ -227,8 +227,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  phaser@4.1.0:
-    resolution: {integrity: sha512-ZXv5Bhyg2BqJGAAxNI2xvmzGXW9q+TwUG1RLri5ZDBYGGtcma6aWUO/eJ7EbozeqRd5fKdpo4ycNMQt+Bi5iYg==}
+  phaser@3.70.0:
+    resolution: {integrity: sha512-2g+gh+Jp9f/Ho9FOXOYbIJMGf3UZXyMbW2iLScFaLQw11e/LqVyxj/YmaBauWbHabeTnZjiWkPklDnxhesMH0g==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -445,7 +445,7 @@ snapshots:
 
   nanoid@3.3.12: {}
 
-  phaser@4.1.0:
+  phaser@3.70.0:
     dependencies:
       eventemitter3: 5.0.4
 

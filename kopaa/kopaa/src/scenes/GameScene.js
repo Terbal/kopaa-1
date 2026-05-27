@@ -1,6 +1,14 @@
 import Phaser from "phaser";
-import mazeData from "../maze/mazeData";
+
 import Player from "../entities/Player";
+import mazeData from "../maze/mazeData";
+import MazeBuilder from "../systems/MazeBuilder";
+import SpawnSystem from "../systems/SpawnSystem";
+import FogSystem from "../systems/FogSystem";
+import ObservationSystem from "../systems/ObservationSystem";
+import CollisionSystem from "../systems/CollisionSystem";
+
+import Trophy from "../entities/Trophy";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -9,277 +17,133 @@ export default class GameScene extends Phaser.Scene {
 
   preload() {
     // =========================
-    // IMAGE DU JOUEUR
+    // ASSETS
     // =========================
-    this.load.image("player", "src/assets/player.png");
+    this.load.image("player", "/player.png");
+    this.load.image("trophy", "/trophy.png");
   }
 
   create() {
     // =========================
-    // PHASE D'OBSERVATION
-    // =========================
-    this.isObservationPhase = true;
-
-    // =========================
-    // TEMPS D'OBSERVATION
-    // =========================
-    this.observationTime = 3;
-
-    // =========================
-    // INPUT CLAVIER
+    // INPUT
     // =========================
     this.cursors = this.input.keyboard.createCursorKeys();
 
     // =========================
-    // GROUPE DES MURS
+    // LABYRINTHE
     // =========================
-    this.walls = this.physics.add.staticGroup();
+    this.mazeBuilder = new MazeBuilder(this);
+    this.walls = this.mazeBuilder.build();
 
     // =========================
-    // TAILLE D'UNE CASE
+    // COLLISIONS
     // =========================
-    const tileSize = 64;
+    this.collisionSystem = new CollisionSystem(this);
 
     // =========================
-    // GÉNÉRATION DU LABYRINTHE
+    // SPAWN PLAYER
     // =========================
-    for (let row = 0; row < mazeData.length; row++) {
-      for (let col = 0; col < mazeData[row].length; col++) {
-        const tile = mazeData[row][col];
+    this.spawnSystem = new SpawnSystem();
+    const spawn = this.spawnSystem.getRandomSpawn();
 
-        // =========================
-        // SI C'EST UN MUR
-        // =========================
-        if (tile === 1) {
-          const wall = this.add.rectangle(
-            col * tileSize,
-            row * tileSize,
-            tileSize,
-            tileSize,
-            0x333333,
-          );
-
-          // =========================
-          // ALIGNEMENT EN HAUT GAUCHE
-          // =========================
-          wall.setOrigin(0);
-
-          // =========================
-          // AJOUT PHYSIQUE
-          // =========================
-          this.physics.add.existing(wall, true);
-
-          // =========================
-          // AJOUT AU GROUPE DES MURS
-          // =========================
-          this.walls.add(wall);
-        }
-      }
-    }
-
-    // =========================
-    // SPAWN ALÉATOIRE
-    // =========================
-    const spawn = this.getRandomSpawn();
-
-    // =========================
-    // CRÉATION DU JOUEUR
-    // =========================
     this.player = new Player(this, spawn.x, spawn.y);
 
-    // =========================
-    // COLLISION JOUEUR ↔ MURS
-    // =========================
-    this.physics.add.collider(this.player, this.walls);
+    this.collisionSystem.playerVsWalls(this.player, this.walls);
 
     // =========================
-    // TAILLE DU MONDE
+    // WORLD SETUP
     // =========================
     this.physics.world.setBounds(0, 0, 5000, 5000);
 
-    // =========================
-    // CAMÉRA SUIT LE JOUEUR
-    // =========================
     this.cameras.main.startFollow(this.player);
-
-    // =========================
-    // LIMITES DE LA CAMÉRA
-    // =========================
     this.cameras.main.setBounds(0, 0, 5000, 5000);
-
-    // =========================
-    // ZOOM OUT INITIAL
-    // =========================
     this.cameras.main.setZoom(0.25);
 
     // =========================
-    // FOG OF WAR
+    // SYSTEMS
     // =========================
-    this.fog = this.add.renderTexture(0, 0, 5000, 5000);
-
-    this.fog.fill(0x000000, 0.92);
-
-    // =========================
-    // MASQUE LUMINEUX
-    // =========================
-    this.lightMask = this.make.graphics();
+    this.observationSystem = new ObservationSystem(this);
+    this.fogSystem = new FogSystem(this, this.player);
 
     // =========================
-    // TEXTE TIMER
+    // TROPHY
     // =========================
-    this.timerText = this.add.text(
-      20,
-      20,
-      `MEMORISE : ${this.observationTime}`,
-      {
-        fontSize: "32px",
-        color: "#ffffff",
-        fontStyle: "bold",
-        backgroundColor: "#000000",
-        padding: {
-          x: 12,
-          y: 8,
-        },
-      },
-    );
+    this.createTrophy();
 
     // =========================
-    // TEXTE FIXE À L'ÉCRAN
+    // GAME STATE
     // =========================
-    this.timerText.setScrollFactor(0);
-
-    // =========================
-    // TEXTE AU-DESSUS DE TOUT
-    // =========================
-    this.timerText.setDepth(999);
+    this.isGameFinished = false;
 
     // =========================
-    // TIMER OBSERVATION
+    // WIN TEXT
     // =========================
-    this.time.addEvent({
-      delay: 1000,
-
-      repeat: 2,
-
-      callback: () => {
-        this.observationTime--;
-
-        this.timerText.setText(`MEMORISE : ${this.observationTime}`);
-
-        // =========================
-        // FIN DE LA PHASE
-        // =========================
-        if (this.observationTime <= 0) {
-          this.startFogPhase();
-        }
-      },
+    this.winText = this.add.text(0, 0, "", {
+      fontSize: "64px",
+      color: "#ffd700",
+      fontStyle: "bold",
     });
+
+    this.winText.setDepth(10000);
+    this.winText.setVisible(false);
   }
 
   update() {
+    if (this.isGameFinished) return;
+
     // =========================
-    // DÉPLACEMENT JOUEUR
+    // PLAYER MOVE
     // =========================
     this.player.move(this.cursors);
 
     // =========================
-    // SI PHASE FOG ACTIVE
+    // FOG UPDATE
+    // La seule ligne changée : on passe la caméra en paramètre
+    // pour que FogSystem puisse convertir world → screen coords
     // =========================
-    if (!this.isObservationPhase) {
-      // =========================
-      // RESET MASQUE
-      // =========================
-      this.lightMask.clear();
+    this.fogSystem.update(
+      this.observationSystem.isObservationPhase,
+      this.cameras.main,
+    );
 
-      // =========================
-      // COULEUR LUMIÈRE
-      // =========================
-      this.lightMask.fillStyle(0xffffff);
-
-      // =========================
-      // GRAND CERCLE
-      // =========================
-      this.lightMask.fillCircle(this.player.x, this.player.y, 220);
-
-      // =========================
-      // PETIT CERCLE
-      // =========================
-      this.lightMask.fillCircle(this.player.x, this.player.y, 130);
-
-      // =========================
-      // RESET FOG
-      // =========================
-      this.fog.clear();
-
-      // =========================
-      // NOIR GLOBAL
-      // =========================
-      this.fog.fill(0x000000, 0.92);
-
-      // =========================
-      // TROU AUTOUR DU JOUEUR
-      // =========================
-      this.fog.erase(this.lightMask);
-    } else {
-      // =========================
-      // PAS DE FOG AU DÉBUT
-      // =========================
-      this.fog.clear();
-    }
+    // =========================
+    // WIN CHECK
+    // =========================
+    this.physics.overlap(this.player, this.trophy, () => this.winGame());
   }
 
   // =========================
-  // DÉBUT PHASE FOG
+  // CREATE TROPHY
   // =========================
-  startFogPhase() {
-    // =========================
-    // ACTIVE LE FOG
-    // =========================
-    this.isObservationPhase = false;
-
-    // =========================
-    // TEXTE
-    // =========================
-    this.timerText.setText("GO GO GO");
-
-    // =========================
-    // ZOOM NORMAL
-    // =========================
-    this.cameras.main.zoomTo(1, 1200);
-
-    // =========================
-    // SHAKE CAMÉRA
-    // =========================
-    this.cameras.main.shake(400, 0.003);
-  }
-
-  // =========================
-  // SPAWN RANDOM
-  // =========================
-  getRandomSpawn() {
+  createTrophy() {
     const tileSize = 64;
 
-    let x;
-    let y;
+    const largeur = mazeData[0].length * tileSize;
+    const hauteur = mazeData.length * tileSize;
 
-    let valid = false;
+    const centerX = largeur / 2;
+    const centerY = hauteur / 2;
 
-    while (!valid) {
-      const col = Phaser.Math.Between(1, mazeData[0].length - 2);
+    this.trophy = new Trophy(this, centerX, centerY);
 
-      const row = Phaser.Math.Between(1, mazeData.length - 2);
+    // sécurité visuelle
+    this.trophy.setVisible(true);
+    this.trophy.setActive(true);
+    this.trophy.setDepth(10);
+  }
 
-      // =========================
-      // SI CASE LIBRE
-      // =========================
-      if (mazeData[row][col] === 0) {
-        x = col * tileSize;
-        y = row * tileSize;
+  // =========================
+  // WIN CONDITION
+  // =========================
+  winGame() {
+    this.isGameFinished = true;
 
-        valid = true;
-      }
-    }
+    this.winText.setText("WINNER 🏆");
 
-    return { x, y };
+    this.winText.setPosition(this.player.x - 150, this.player.y - 200);
+
+    this.winText.setVisible(true);
+
+    this.player.setVelocity(0, 0);
   }
 }

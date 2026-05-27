@@ -1,6 +1,6 @@
 # 🧠 Maze Cup — Prototype 2D Multijoueur (MVP)
 
-## 🎯 Vision du projet
+## 🎯 VISION DU PROJET
 
 Maze Cup est un jeu multijoueur 2D top-down basé sur :
 
@@ -10,7 +10,12 @@ Maze Cup est un jeu multijoueur 2D top-down basé sur :
 - l’orientation dans un labyrinthe
 - la prise de décision rapide
 
-Le joueur doit mémoriser un labyrinthe visible pendant quelques secondes, puis naviguer dans le noir (fog of war) pour atteindre une coupe au centre avant les autres joueurs.
+Le joueur doit :
+
+1. Observer un labyrinthe entièrement visible
+2. Mémoriser le chemin
+3. Survivre dans un fog of war
+4. Atteindre une coupe centrale avant les autres joueurs
 
 ---
 
@@ -20,183 +25,241 @@ Le joueur doit mémoriser un labyrinthe visible pendant quelques secondes, puis 
 
 - Projet initialisé avec Vite
 - Phaser installé
-- Git initialisé et premier commit effectué
-- Structure de base créée
+- Git configuré
+- Structure de base mise en place
 
 ---
 
-## 🎮 2. Moteur de jeu
+## 🎮 2. MOTEUR DE JEU
 
-- Phaser configuré (config.js)
-- Scene principale GameScene créée
-- Boucle de jeu active (create / update)
+- Phaser configuré
+- GameScene créée
+- boucle create / update fonctionnelle
 
 ---
 
-## 🧍 3. Joueur
+## 🧍 3. JOUEUR
 
-- Classe Player créée (orientée objet)
+- Classe Player en OOP
 - Déplacement clavier (flèches)
 - Physique Arcade activée
-- Collision avec les limites du monde
+- Collision avec murs
 
 ---
 
-## 🗺️ 4. Labyrinthe
+## 🗺️ 4. LABYRINTHE
 
-- Génération via tableau 2D
+- Génération via matrice 2D
 - 1 = mur / 0 = chemin
 - Affichage dynamique des murs
-- Système de collisions joueur ↔ murs
+- collisions fonctionnelles
 
 ---
 
-## 📷 5. Caméra
+## 📷 5. CAMÉRA
 
-- Caméra suit le joueur
-- Monde agrandi (world bounds)
-- Expérience top-down dynamique
-
----
-
-## 🌫️ 6. Fog of War (base)
-
-- Système de masque lumineux autour du joueur
-- Zone visible limitée
-- Base pour gameplay mémoire / stress
+- caméra suit le joueur
+- zoom dynamique
+- monde étendu
 
 ---
 
-# 🚧 EN COURS / À STABILISER
+## 🧭 6. SPAWN SYSTEM
 
-- Nettoyage des imports ES Modules (Vite + Phaser)
-- Chargement correct des assets (player image)
-- Stabilisation du fog (optimisation RenderTexture)
-- Organisation propre des scènes et entités
+- spawn aléatoire dans les zones libres
+- évite les murs
+- position variable à chaque partie
 
 ---
 
-# 🔥 PROCHAINES ÉTAPES (ROADMAP MVP)
+## 🌫️ 7. FOG OF WAR (VERSION ACTUELLE)
 
-## 🧠 PHASE 1 — CORE GAMEPLAY
+- système de vision limité autour du joueur
+- cercle de visibilité dynamique
+- masque basé sur Graphics (Phaser)
+- transition après phase d’observation
+
+---
+
+## ⏱️ 8. PHASE D’OBSERVATION
+
+- 3 secondes au début de la partie
+- labyrinthe entièrement visible
+- caméra zoom out
+- timer affiché à l’écran
+- transition automatique vers le fog
+
+---
+
+# 🚧 PROBLÈMES / LIMITES ACTUELLES
+
+- Fog basé sur Graphics parfois instable selon rendu WebGL
+- Pas encore d’optimisation réseau (multijoueur absent)
+- Pas encore d’objectif central (coupe non ajoutée)
+- Pas encore de système de victoire
+
+---
+
+# 🔥 ROADMAP MVP
+
+## 🧠 PHASE 1 — CORE GAMEPLAY (EN COURS)
 
 ### ⏱️ 1. Phase d’observation
 
-- Au début de la partie :
-  - labyrinthe entièrement visible
-  - joueurs visibles
-  - coupe visible
-- Timer de 10 secondes
+- labyrinthe visible 3–5 secondes
+- timer UI
+- mémorisation du terrain
 
 ---
 
 ### 🌫️ 2. Phase de brouillard
 
-- Activation du fog of war
-- Le joueur ne voit que autour de lui
-- Gameplay basé sur mémoire
+- vision limitée autour du joueur
+- gameplay basé sur mémoire + stress
 
 ---
 
-## 🏁 3. Objectif principal
+## 🏁 3. OBJECTIF CENTRAL
 
-- Ajouter une coupe au centre du labyrinthe
-- Détection de victoire quand un joueur la touche
-
----
-
-## 👥 4. Multijoueur (Socket.IO)
-
-- Synchronisation des joueurs en temps réel
-- Position des joueurs en live
-- Classement dynamique basé sur distance à la coupe
+- ajout d’une coupe au centre du labyrinthe
+- détection de victoire
+- fin de partie
 
 ---
 
-## 🏆 5. Système de scoring
+## 👥 4. MULTIJOUEUR (FUTUR)
 
-- +100 pour le premier
-- +60 pour le deuxième
-- +40 pour le troisième
-- bonus si aucun "coup d’œil" utilisé
-- pénalités pour utilisation du coup d’œil
-
----
-
-## 👁️ 6. Mécanique “Coup d’œil”
-
-- Affiche la map complète pendant 1 seconde
-- Cooldown + pénalités :
-  - loin de la coupe → -15 points
-  - proche de la coupe → reset position + -5 points
+- Socket.IO
+- synchronisation des joueurs
+- positions en temps réel
+- leaderboard dynamique
 
 ---
 
-## 🧭 7. Traces des joueurs
+## 🏆 5. SCORING SYSTEM
 
-- Les joueurs laissent une trace lumineuse temporaire
-- Permet de suivre ou tromper les autres joueurs
+- +100 premier
+- +60 deuxième
+- +40 troisième
+- bonus sans usage de “coup d’œil”
+- pénalités selon gameplay
 
 ---
 
-## 💣 8. Objets spéciaux
+## 👁️ 6. MÉCANIQUE “COUP D’ŒIL”
+
+- affiche la map entière 1 seconde
+- cooldown
+- pénalités selon distance à la coupe
+
+---
+
+## 🧭 7. TRACES JOUEURS
+
+- trails lumineux temporaires
+- confusion / stratégie / bluff
+
+---
+
+## 💣 8. OBJETS SPÉCIAUX
 
 - Bulldozer :
-  - détruit 2 murs
-  - crée un raccourci
-  - bruit + reveal position temporaire
+  - détruit murs
+  - crée raccourcis
+  - révèle position temporairement
 
 ---
 
 # 🎨 DIRECTION ARTISTIQUE
 
-- Vue top-down 2D
-- Style sombre + néon
-- Ambiance stress / mémoire / confusion
-- Inspiré de :
+- vue top-down 2D
+- ambiance sombre + néon
+- style lisible type mobile game
+- inspiration :
   - Among Us (lisibilité)
-  - Brawl Stars (UI mobile)
-- Effets :
-  - glow
-  - fog
-  - lumière dynamique
+  - Brawl Stars (UI)
+
+effets :
+
+- glow
+- fog
+- contraste élevé
+- stress visuel
 
 ---
 
 # 🧠 OBJECTIF FINAL MVP
 
-Créer une version jouable simple mais addictive :
+Créer un jeu jouable et addictif :
 
 - 1 seule map
-- 4 à 10 joueurs
-- une coupe centrale
-- fog of war après phase d’observation
-- leaderboard en temps réel
-- gameplay basé sur mémoire + stress
+- 4–10 joueurs
+- fog après mémorisation
+- coupe centrale
+- leaderboard live
+- gameplay basé mémoire + pression
 
 ---
 
 # ⚙️ STACK TECHNIQUE
 
-- Phaser (frontend game engine)
+- Phaser (game engine)
 - Vite (build tool)
 - Node.js (backend futur)
-- Socket.IO (multiplayer temps réel futur)
-- Firebase (storage initial optionnel)
+- Socket.IO (multiplayer)
+- Firebase (option stockage)
 
 ---
 
-# 🚀 PRINCIPES IMPORTANT
+# 🚀 PRINCIPES DE DÉVELOPPEMENT
 
-- Toujours construire petit système par petit système
-- Le gameplay > les graphismes
-- MVP d’abord, features ensuite
-- Une mécanique = un fichier / une classe
+- MVP d’abord
+- gameplay avant graphismes
+- un système à la fois
+- tester → ajuster → améliorer
+- garder le scope petit
 
 ---
 
 # 🧭 PROCHAINE ÉTAPE IMMÉDIATE
 
-➡️ Phase d’observation (timer + reveal full map)
-➡️ transition automatique vers fog
-➡️ début du vrai gameplay
+👉 AJOUT DE LA COUPE CENTRALE
+👉 + système de victoire
+👉 + fin de partie
+
+================================================
+
+================================================
+
+src/
+│
+├── scenes/
+│ └── GameScene.js
+│
+├── entities/
+│ ├── Player.js
+│ └── Trophy.js
+│
+├── systems/
+│ ├── FogSystem.js
+│ ├── MazeBuilder.js
+│ ├── ObservationSystem.js
+│ ├── SpawnSystem.js
+│ └── CollisionSystem.js
+│
+├── maze/
+│ └── mazeData.js
+│
+├── ui/
+│ ├── TimerUI.js
+│ └── LeaderboardUI.js
+│
+├── managers/
+│ ├── GameManager.js
+│ └── SocketManager.js
+│
+├── utils/
+│ ├── constants.js
+│ └── helpers.js
+│
+└── main.js
