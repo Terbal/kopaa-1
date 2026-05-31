@@ -9,15 +9,23 @@ export default class Trophy extends Phaser.Physics.Arcade.Sprite {
 
     this.setImmovable(true);
     this.body.setAllowGravity(false);
-
     this.setScale(0.08);
     this.setTint(0xffd700);
     this.setDepth(10);
+
+    // Pulse via tween — plus fiable que update()
+    scene.tweens.add({
+      targets: this,
+      scaleX: 0.095,
+      scaleY: 0.095,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
   }
 
   update() {
-    // ici plus tard :
-    // animation glow / rotation / pulse
-    this.rotation += 0.002;
+    this.rotation += 0.02;
   }
 }
