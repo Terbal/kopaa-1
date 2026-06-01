@@ -332,6 +332,10 @@ export default class GameScene extends Phaser.Scene {
     this.potion.setVisible(false);
     this.potion.setActive(false);
     this.potion.body.enable = false;
+
+    // Enregistrer pour le scoring
+    this.scoreSystem.registerPotionUse(this.socketManager.myId);
+
     this.phantomSystem.activate(() => {
       this.potion.relocate();
     });
@@ -363,15 +367,57 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.cameras.main.shake(300, 0.005);
 
-    // Scores finaux
-    const allIds = Object.keys(this._lastPlayers);
-    const winnerId = isWinner
-      ? this.socketManager.myId
-      : allIds.find((id) => id !== this.socketManager.myId);
+    // =========================
+    // CALCUL SCORES FINAUX
+    // =========================
+    const tileSize = 64;
+    const trophyX = (mazeData[0].length * tileSize) / 2;
+    const trophyY = (mazeData.length * tileSize) / 2;
 
-    const finalScores = this.scoreSystem.applyEndScores(winnerId, allIds);
+    // Distances finales de tous les joueurs
+    const playerDistances = [];
 
-    Object.entries(finalScores).forEach(([id, score]) => {
+    // Moi
+    playerDistances.push({
+      id: this.socketManager.myId,
+      dist: Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        trophyX,
+        trophyY,
+      ),
+    });
+
+    // Adversaires
+    Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
+      playerDistances.push({
+        id,
+        dist: Phaser.Math.Distance.Between(
+          sprite.x,
+          sprite.y,
+          trophyX,
+          trophyY,
+        ),
+      });
+    });
+
+    const { scores, sorted } = this.scoreSystem.applyEndScores(playerDistances);
+
+    // Envoyer scores au serveur pour persistance
+    const gameScores = sorted.map(({ id }) => ({
+      id,
+      pseudo: this._lastPlayers[id]?.pseudo || "Joueur",
+      score: scores[id] || 0,
+    }));
+    this.socketManager.socket.emit("saveScores", { gameScores });
+
+    // Recevoir le leaderboard global mis à jour
+    this.socketManager.socket.once("leaderboardUpdated", (board) => {
+      this._showGlobalLeaderboard(board);
+    });
+
+    // Mettre à jour le leaderboard avec scores finaux
+    sorted.forEach(({ id, dist }) => {
       const x =
         id === this.socketManager.myId
           ? this.player.x
@@ -380,23 +426,25 @@ export default class GameScene extends Phaser.Scene {
         id === this.socketManager.myId
           ? this.player.y
           : this.remotePlayers[id]?.y || 0;
-      this.leaderboardUI.update(id, x, y, score);
+      this.leaderboardUI.update(id, x, y, scores[id]);
     });
     this.leaderboardUI.sort();
     this.leaderboardUI.setVisible(true);
 
-    // Overlay
+    // =========================
+    // OVERLAY
+    // =========================
     this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.7)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.75)
       .setScrollFactor(0)
       .setDepth(9997)
       .setOrigin(0);
 
-    // Résultat
+    // Résultat principal
     this.add
       .text(
         this.scale.width / 2,
-        this.scale.height / 2 - 100,
+        this.scale.height / 2 - 120,
         isWinner ? "WINNER 🏆" : "PERDU 💀",
         {
           fontSize: "72px",
@@ -410,14 +458,48 @@ export default class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(9998);
 
-    // Bouton REJOUER ENSEMBLE
+    // =========================
+    // RECAP SCORE
+    // =========================
+    const myScore = scores[this.socketManager.myId] || 0;
+    const myGlances =
+      this.scoreSystem.glanceCounts[this.socketManager.myId] || 0;
+    const myPotion = this.scoreSystem.usedPotion[this.socketManager.myId];
+    const myRank =
+      sorted.findIndex((p) => p.id === this.socketManager.myId) + 1;
+
+    const recapLines = [
+      `SCORE FINAL : ${myScore} pts`,
+      `Classement : #${myRank}/${sorted.length}`,
+      myGlances === 0
+        ? "✅ Aucun coup d'œil  (+25)"
+        : `❌ ${myGlances} coup(s) d'œil  (-${myGlances * 15})`,
+      myPotion ? "❌ Potion utilisée" : "✅ Sans potion  (+20)",
+    ];
+
+    recapLines.forEach((line, i) => {
+      this.add
+        .text(this.scale.width / 2, this.scale.height / 2 - 30 + i * 32, line, {
+          fontSize: i === 0 ? "26px" : "18px",
+          color: i === 0 ? "#ffd700" : "#cccccc",
+          stroke: "#000000",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(9998);
+    });
+
+    // =========================
+    // BOUTONS
+    // =========================
     const btnSame = this.add
       .text(
         this.scale.width / 2,
-        this.scale.height / 2 + 20,
+        this.scale.height / 2 + 110,
         "🔁  REJOUER ENSEMBLE",
         {
-          fontSize: "30px",
+          fontSize: "26px",
           color: "#ffffff",
           backgroundColor: "#1a1a1a",
           padding: { x: 24, y: 12 },
@@ -436,14 +518,13 @@ export default class GameScene extends Phaser.Scene {
         this.socketManager.socket.emit("requestRematch");
       });
 
-    // Bouton CHERCHER UN AUTRE JOUEUR
     const btnNew = this.add
       .text(
         this.scale.width / 2,
-        this.scale.height / 2 + 110,
+        this.scale.height / 2 + 175,
         "🔍  CHERCHER UN AUTRE JOUEUR",
         {
-          fontSize: "24px",
+          fontSize: "20px",
           color: "#aaaaaa",
           backgroundColor: "#1a1a1a",
           padding: { x: 24, y: 12 },
@@ -460,23 +541,117 @@ export default class GameScene extends Phaser.Scene {
         this.scene.start("LobbyScene");
       });
 
-    // Texte attente
     this.waitingText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 + 60, "", {
-        fontSize: "18px",
+      .text(this.scale.width / 2, this.scale.height / 2 + 148, "", {
+        fontSize: "16px",
         color: "#888888",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(9999);
 
-    // Rematch ready
     this.socketManager.socket.on("rematchReady", () => {
       this.scene.start("GameScene", {
         socket: this.socketManager.socket,
         myId: this.socketManager.myId,
         players: this._lastPlayers,
       });
+    });
+  }
+
+  _showGlobalLeaderboard(board) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+
+    // Fond panneau
+    const panelW = 320;
+    const panelH = Math.min(board.length * 36 + 60, 400);
+    const panelX = W / 2 + 220;
+    const panelY = H / 2 - panelH / 2 - 30;
+
+    this.add
+      .rectangle(panelX, panelY, panelW, panelH, 0x000000, 0.85)
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(9998);
+
+    this.add
+      .text(panelX, panelY + 14, "🏅 CLASSEMENT GÉNÉRAL", {
+        fontSize: "14px",
+        color: "#ffd700",
+        fontStyle: "bold",
+        letterSpacing: 2,
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(9999);
+
+    // En-têtes
+    this.add
+      .text(panelX - 140, panelY + 38, "#  JOUEUR", {
+        fontSize: "11px",
+        color: "#444466",
+        letterSpacing: 2,
+      })
+      .setScrollFactor(0)
+      .setDepth(9999);
+
+    this.add
+      .text(panelX + 100, panelY + 38, "TOTAL", {
+        fontSize: "11px",
+        color: "#444466",
+        letterSpacing: 2,
+      })
+      .setScrollFactor(0)
+      .setDepth(9999);
+
+    // Lignes
+    const medals = ["🥇", "🥈", "🥉"];
+    const maxRows = Math.floor((panelH - 60) / 36);
+
+    board.slice(0, maxRows).forEach((p, i) => {
+      const y = panelY + 60 + i * 36;
+      const isMe =
+        p.pseudo === this._lastPlayers[this.socketManager.myId]?.pseudo;
+      const rank = medals[i] || `${i + 1}.`;
+
+      // Highlight si c'est moi
+      if (isMe) {
+        this.add
+          .rectangle(panelX, y + 10, panelW - 20, 30, 0x00ffcc, 0.08)
+          .setOrigin(0.5, 0.5)
+          .setScrollFactor(0)
+          .setDepth(9998);
+      }
+
+      this.add
+        .text(panelX - 140, y, `${rank}  ${p.pseudo}`, {
+          fontSize: "15px",
+          color: isMe ? "#00ffcc" : "#cccccc",
+          fontStyle: isMe ? "bold" : "normal",
+        })
+        .setScrollFactor(0)
+        .setDepth(9999);
+
+      this.add
+        .text(panelX + 140, y, `${p.totalScore} pts`, {
+          fontSize: "15px",
+          color: "#ffd700",
+          fontStyle: "bold",
+        })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(9999);
+
+      // Parties jouées
+      this.add
+        .text(panelX + 140, y + 18, `${p.gamesPlayed} partie(s)`, {
+          fontSize: "10px",
+          color: "#444466",
+        })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(9999);
     });
   }
 }

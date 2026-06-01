@@ -320,6 +320,12 @@ export default class LobbyScene extends Phaser.Scene {
     });
 
     this.socket.emit("joinLobby", { pseudo });
+
+    // Demander le leaderboard global
+    this.socket.emit("getLeaderboard");
+    this.socket.on("leaderboardUpdated", (board) => {
+      this._renderGlobalLeaderboard(board);
+    });
   }
 
   // =========================
@@ -422,6 +428,70 @@ export default class LobbyScene extends Phaser.Scene {
       this.chatLines.shift();
       this.chatLines.forEach((l, i) => l.setY(i * 26));
     }
+  }
+
+  _renderGlobalLeaderboard(board) {
+    // Nettoyer l'ancien si exists
+    if (this._lbObjects) {
+      this._lbObjects.forEach((o) => o.destroy());
+    }
+    this._lbObjects = [];
+
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const x = W / 2 + 180;
+    const y = H * 0.28;
+    const rowH = 32;
+    const panelH = Math.min(board.length * rowH + 50, 300);
+
+    const bg = this.add
+      .rectangle(x, y, 280, panelH, 0x080810, 0.95)
+      .setOrigin(0.5, 0)
+      .setStrokeStyle(1, 0xffd700, 0.2);
+    this._lbObjects.push(bg);
+
+    const title = this.add
+      .text(x, y + 14, "🏅 CLASSEMENT GÉNÉRAL", {
+        fontSize: "13px",
+        color: "#ffd700",
+        fontStyle: "bold",
+        letterSpacing: 2,
+      })
+      .setOrigin(0.5, 0);
+    this._lbObjects.push(title);
+
+    if (board.length === 0) {
+      const empty = this.add
+        .text(x, y + 45, "Aucune partie jouée", {
+          fontSize: "13px",
+          color: "#333355",
+        })
+        .setOrigin(0.5, 0);
+      this._lbObjects.push(empty);
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉"];
+
+    board.slice(0, 8).forEach((p, i) => {
+      const ry = y + 44 + i * rowH;
+      const rank = medals[i] || `${i + 1}.`;
+
+      const row = this.add.text(x - 120, ry, `${rank}  ${p.pseudo}`, {
+        fontSize: "14px",
+        color: "#cccccc",
+      });
+      this._lbObjects.push(row);
+
+      const pts = this.add
+        .text(x + 120, ry, `${p.totalScore} pts`, {
+          fontSize: "14px",
+          color: "#ffd700",
+          fontStyle: "bold",
+        })
+        .setOrigin(1, 0);
+      this._lbObjects.push(pts);
+    });
   }
 
   // Nettoyer les inputs HTML quand on quitte la scène

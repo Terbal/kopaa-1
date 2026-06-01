@@ -1,6 +1,12 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LEADERBOARD_PATH = path.join(__dirname, "leaderboard.json");
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,7 +20,51 @@ let gameWon = false;
 let countdownInterval = null;
 let countdownValue = 10;
 
-// En dehors de io.on pour être partagé entre les connexions
+// =========================
+// LEADERBOARD PERSISTANT
+// =========================
+function loadLeaderboard() {
+  try {
+    const raw = fs.readFileSync(LEADERBOARD_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaderboard(data) {
+  fs.writeFileSync(LEADERBOARD_PATH, JSON.stringify(data, null, 2));
+}
+
+function updateLeaderboard(gameScores) {
+  const board = loadLeaderboard();
+
+  gameScores.forEach(({ id, pseudo, score }) => {
+    const existing = board.find((p) => p.pseudo === pseudo);
+    if (existing) {
+      existing.totalScore += score;
+      existing.gamesPlayed += 1;
+      existing.bestScore = Math.max(existing.bestScore, score);
+      existing.lastSeen = Date.now();
+    } else {
+      board.push({
+        pseudo,
+        totalScore: score,
+        gamesPlayed: 1,
+        bestScore: score,
+        lastSeen: Date.now(),
+      });
+    }
+  });
+
+  board.sort((a, b) => b.totalScore - a.totalScore);
+  saveLeaderboard(board);
+  return board;
+}
+
+// =========================
+// REMATCH VOTES
+// =========================
 const rematchVotes = new Set();
 
 function getHost() {
@@ -126,7 +176,6 @@ io.on("connection", (socket) => {
   // SCORE UPDATE
   // =========================
   socket.on("scoreUpdate", ({ scores }) => {
-    // Broadcast les scores à tous les autres
     socket.broadcast.emit("scoresUpdated", { scores });
   });
 
@@ -138,6 +187,22 @@ io.on("connection", (socket) => {
     gameWon = true;
     io.emit("gameOver", { winnerId: socket.id });
     console.log(`🏆 Gagnant : ${players[socket.id]?.pseudo}`);
+  });
+
+  // =========================
+  // SAVE SCORES FINAUX
+  // =========================
+  socket.on("saveScores", ({ gameScores }) => {
+    const board = updateLeaderboard(gameScores);
+    io.emit("leaderboardUpdated", board);
+    console.log("📊 Leaderboard mis à jour");
+  });
+
+  // =========================
+  // DEMANDE LEADERBOARD
+  // =========================
+  socket.on("getLeaderboard", () => {
+    socket.emit("leaderboardUpdated", loadLeaderboard());
   });
 
   // =========================
@@ -165,7 +230,7 @@ io.on("connection", (socket) => {
   // =========================
   socket.on("disconnect", () => {
     const pseudo = players[socket.id]?.pseudo || socket.id;
-    rematchVotes.delete(socket.id); // nettoyer le vote si déco
+    rematchVotes.delete(socket.id);
     delete players[socket.id];
     io.emit("playerLeft", { id: socket.id });
     console.log(
@@ -181,6 +246,9 @@ io.on("connection", (socket) => {
   });
 });
 
+// =========================
+// BROADCAST POSITIONS
+// =========================
 setInterval(() => {
   const positions = Object.values(players).map((p) => ({
     id: p.id,
