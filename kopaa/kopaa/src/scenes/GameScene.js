@@ -145,6 +145,21 @@ export default class GameScene extends Phaser.Scene {
       this.showEndScreen(winnerId === this.socketManager.myId);
     });
 
+    this.socketManager.socket.on("allPositions", (positions) => {
+      positions.forEach(({ id, x, y }) => {
+        if (id === this.socketManager.myId) {
+          // Mettre à jour mon rang avec ma vraie position
+          const myScore = this.scoreSystem.getScore(this.socketManager.myId);
+          this.leaderboardUI.update(id, this.player.x, this.player.y, myScore);
+        } else if (this.remotePlayers[id]) {
+          this.remotePlayers[id].setPosition(x, y);
+          const score = this.scoreSystem.getScore(id);
+          this.leaderboardUI.update(id, x, y, score);
+        }
+      });
+      this.leaderboardUI.sort();
+    });
+
     // =========================
     // SCORE + LEADERBOARD
     // =========================
@@ -160,6 +175,11 @@ export default class GameScene extends Phaser.Scene {
     const tileSize = 64;
     const trophyX = (mazeData[0].length * tileSize) / 2;
     const trophyY = (mazeData.length * tileSize) / 2;
+
+    // Cleanup propre si rematch
+    if (this.leaderboardUI) {
+      this.leaderboardUI.destroy();
+    }
 
     this.leaderboardUI = new LeaderboardUI(this);
     this.leaderboardUI.init(allPlayers, myId, trophyX, trophyY);

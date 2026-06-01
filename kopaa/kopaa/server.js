@@ -181,6 +181,17 @@ io.on("connection", (socket) => {
   });
 });
 
+setInterval(() => {
+  const positions = Object.values(players).map((p) => ({
+    id: p.id,
+    x: p.x || 0,
+    y: p.y || 0,
+  }));
+  if (positions.length > 0) {
+    io.emit("allPositions", positions);
+  }
+}, 50);
+
 httpServer.listen(3000, () => {
   console.log("🚀 Serveur sur http://localhost:3000");
 });
