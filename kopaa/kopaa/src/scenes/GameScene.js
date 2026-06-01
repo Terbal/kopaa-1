@@ -14,6 +14,7 @@ import PhantomSystem from "../systems/PhantomSystem";
 import GlanceSystem from "../systems/GlanceSystem";
 import LeaderboardUI from "../ui/LeaderboardUI";
 import ScoreSystem from "../systems/ScoreSystem";
+import TrailSystem from "../systems/TrailSystem";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -86,6 +87,30 @@ export default class GameScene extends Phaser.Scene {
     this.observationSystem = new ObservationSystem(this);
     this.fogSystem = new FogSystem(this, this.player);
     this.phantomSystem = new PhantomSystem(this, this.player);
+
+    // =========================
+    // TRAIL SYSTEM
+    // =========================
+    if (this.trailSystem) this.trailSystem.destroy();
+    this.trailSystem = new TrailSystem(this);
+
+    this._trailTimer = this.time.addEvent({
+      delay: 300,
+      loop: true,
+      callback: () => {
+        if (this.isGameFinished || this.observationSystem.isObservationPhase)
+          return;
+
+        const myColor =
+          this._lobbyPlayers[this.socketManager.myId]?.color || 0x00ffff;
+        this.trailSystem.addStep(this.player.x, this.player.y, myColor);
+
+        Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
+          const color = this._lobbyPlayers[id]?.color || 0xffffff;
+          this.trailSystem.addStep(sprite.x, sprite.y, color);
+        });
+      },
+    });
 
     // =========================
     // GLANCE SYSTEM
@@ -222,6 +247,7 @@ export default class GameScene extends Phaser.Scene {
     // PLAYER MOVE
     // =========================
     this.player.move(this.cursors);
+    this.trailSystem.update();
     this.trophy.update();
 
     // =========================

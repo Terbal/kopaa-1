@@ -1,65 +1,123 @@
 export default class TrailSystem {
   constructor(scene) {
     this.scene = scene;
-    this.trailDuration = 5000; // 5 secondes
-    this.trailInterval = 100;
-    this.dotRadius = 8;
-    this.points = [];
+    this.particles = []; // { sprite, createdAt, lifetime, color }
+    this.lifetime = 20000; // 20 secondes
+
+    // Formes de pas aléatoires (polygones simples)
+    this.footShapes = [
+      // Pied gauche allongé
+      [
+        [-6, -3],
+        [6, -3],
+        [7, 3],
+        [4, 5],
+        [-4, 5],
+        [-7, 3],
+      ],
+      // Pied droit allongé
+      [
+        [-7, -3],
+        [7, -3],
+        [6, 3],
+        [4, 5],
+        [-4, 5],
+        [-6, 3],
+      ],
+      // Petit pied arrondi
+      [
+        [-5, -4],
+        [5, -4],
+        [6, 0],
+        [5, 4],
+        [-5, 4],
+        [-6, 0],
+      ],
+      // Pied large
+      [
+        [-7, -2],
+        [7, -2],
+        [7, 4],
+        [-7, 4],
+      ],
+    ];
   }
 
-  addPoint(x, y, color = "#ffffff") {
-    this.points.push({ x, y, time: this.scene.time.now, color });
+  // =========================
+  // AJOUTER UN PAS
+  // =========================
+  addStep(x, y, color) {
+    const shapePoints =
+      this.footShapes[Phaser.Math.Between(0, this.footShapes.length - 1)];
+
+    // Rotation aléatoire du pas
+    const angle = Phaser.Math.Between(-180, 180) * (Math.PI / 180);
+    const rotated = shapePoints.map(([px, py]) => {
+      const rx = px * Math.cos(angle) - py * Math.sin(angle);
+      const ry = px * Math.sin(angle) + py * Math.cos(angle);
+      return [rx + x, ry + y];
+    });
+
+    // Dessiner le pas via Graphics
+    const g = this.scene.add.graphics();
+    g.fillStyle(color, 0.85);
+    g.beginPath();
+    rotated.forEach(([px, py], i) => {
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    });
+    g.closePath();
+    g.fillPath();
+
+    // Petit halo autour
+    g.fillStyle(color, 0.2);
+    g.fillCircle(x, y, 9);
+
+    g.setDepth(3); // sous le joueur mais au-dessus du sol
+
+    this.particles.push({
+      graphics: g,
+      createdAt: this.scene.time.now,
+      lifetime: this.lifetime,
+      color,
+      x,
+      y,
+      alpha: 0.85,
+    });
   }
 
+  // =========================
+  // UPDATE — fade out progressif
+  // =========================
   update() {
     const now = this.scene.time.now;
-    this.points = this.points.filter((p) => now - p.time < this.trailDuration);
-  }
 
-  draw(ctx, cam, playerScreenX, playerScreenY, visionRadius) {
-    const now = this.scene.time.now;
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      const elapsed = now - p.createdAt;
 
-    for (const point of this.points) {
-      const age = now - point.time;
-      const lifeRatio = 1 - age / this.trailDuration;
+      if (elapsed >= p.lifetime) {
+        p.graphics.destroy();
+        this.particles.splice(i, 1);
+        continue;
+      }
 
-      const sx = (point.x - cam.scrollX) * cam.zoom;
-      const sy = (point.y - cam.scrollY) * cam.zoom;
-
-      const dist = Math.sqrt(
-        Math.pow(sx - playerScreenX, 2) + Math.pow(sy - playerScreenY, 2),
-      );
-
-      if (dist > visionRadius) continue;
-
-      const alpha = lifeRatio * 0.9;
-      if (alpha <= 0.01) continue;
-
-      const r = Math.max(this.dotRadius * cam.zoom, 3);
-
-      ctx.globalCompositeOperation = "source-over";
-
-      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 2.5);
-      glow.addColorStop(0, this.hexToRgba(point.color, alpha));
-      glow.addColorStop(0.4, this.hexToRgba(point.color, alpha * 0.6));
-      glow.addColorStop(1, this.hexToRgba(point.color, 0));
-
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(sx, sy, r * 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      // Alpha diminue progressivement
+      // 0 → 10s : plein eclat
+      // 10s → 20s : fade out
+      const fadeStart = p.lifetime * 0.5;
+      if (elapsed > fadeStart) {
+        const fadeProgress = (elapsed - fadeStart) / (p.lifetime - fadeStart);
+        p.graphics.setAlpha(p.alpha * (1 - fadeProgress));
+      }
     }
   }
 
-  hexToRgba(hex, alpha) {
-    const clean = hex.replace("#", "");
-    const r = parseInt(clean.substring(0, 2), 16);
-    const g = parseInt(clean.substring(2, 4), 16);
-    const b = parseInt(clean.substring(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-
-  reset() {
-    this.points = [];
+  // =========================
+  // CLEANUP
+  // =========================
+  destroy() {
+    this.particles.forEach((p) => p.graphics.destroy());
+    this.particles = [];
   }
 }
