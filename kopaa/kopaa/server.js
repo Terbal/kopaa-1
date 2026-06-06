@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import mazeDataRaw from "./src/maze/mazeData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEADERBOARD_PATH = path.join(__dirname, "leaderboard.json");
@@ -19,6 +20,43 @@ const players = {};
 let gameWon = false;
 let countdownInterval = null;
 let countdownValue = 10;
+
+// =========================
+// POTION — déclaré EN HAUT
+// =========================
+let potionPosition = null;
+
+function getRandomFreeCell() {
+  const tileSize = 64;
+  const freeCells = [];
+
+  mazeDataRaw.forEach((row, r) => {
+    row.forEach((cell, c) => {
+      // 0 = case libre, éviter les bords et le centre (coupe)
+      if (cell === 0) {
+        const x = c * tileSize + tileSize / 2;
+        const y = r * tileSize + tileSize / 2;
+
+        // Éviter la zone centrale où est la coupe (rayon 200px)
+        const centerX = (mazeDataRaw[0].length * tileSize) / 2;
+        const centerY = (mazeDataRaw.length * tileSize) / 2;
+        const distCenter = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+
+        if (distCenter > 200) {
+          freeCells.push({ x, y });
+        }
+      }
+    });
+  });
+
+  return freeCells[Math.floor(Math.random() * freeCells.length)];
+}
+
+function respawnPotion() {
+  potionPosition = getRandomFreeCell();
+  io.emit("potionSpawned", potionPosition);
+  console.log(`🧪 Potion à ${potionPosition.x}, ${potionPosition.y}`);
+}
 
 // =========================
 // LEADERBOARD PERSISTANT
@@ -38,8 +76,7 @@ function saveLeaderboard(data) {
 
 function updateLeaderboard(gameScores) {
   const board = loadLeaderboard();
-
-  gameScores.forEach(({ id, pseudo, score }) => {
+  gameScores.forEach(({ pseudo, score }) => {
     const existing = board.find((p) => p.pseudo === pseudo);
     if (existing) {
       existing.totalScore += score;
@@ -56,7 +93,6 @@ function updateLeaderboard(gameScores) {
       });
     }
   });
-
   board.sort((a, b) => b.totalScore - a.totalScore);
   saveLeaderboard(board);
   return board;
@@ -83,7 +119,11 @@ function startCountdown() {
     if (countdownValue <= 0) {
       clearInterval(countdownInterval);
       countdownInterval = null;
+      // Reset potion PUIS lancer la partie
+      potionPosition = null;
       io.emit("startGame");
+      // Spawn potion après un court délai
+      setTimeout(() => respawnPotion(), 500);
     }
   }, 1000);
 }
@@ -131,6 +171,22 @@ io.on("connection", (socket) => {
   });
 
   // =========================
+  // POTION SYNC
+  // =========================
+  socket.on("requestPotionPosition", () => {
+    if (potionPosition) {
+      socket.emit("potionSpawned", potionPosition);
+    }
+    // Si pas encore de position, le client attendra l'event potionSpawned broadcast
+  });
+
+  socket.on("potionCollected", ({ id }) => {
+    potionPosition = null;
+    socket.broadcast.emit("potionCollected", { id });
+    setTimeout(() => respawnPotion(), 60000);
+  });
+
+  // =========================
   // READY
   // =========================
   socket.on("setReady", ({ ready }) => {
@@ -158,7 +214,9 @@ io.on("connection", (socket) => {
   socket.on("forceStart", () => {
     if (socket.id !== getHost()) return;
     stopCountdown();
+    potionPosition = null;
     io.emit("startGame");
+    setTimeout(() => respawnPotion(), 500);
     console.log("🚀 Partie forcée par le host");
   });
 
@@ -210,7 +268,6 @@ io.on("connection", (socket) => {
   // =========================
   socket.on("requestRematch", () => {
     rematchVotes.add(socket.id);
-
     socket.broadcast.emit("rematchVote", {
       pseudo: players[socket.id]?.pseudo,
       count: rematchVotes.size,
@@ -220,7 +277,9 @@ io.on("connection", (socket) => {
     if (rematchVotes.size >= Object.keys(players).length) {
       rematchVotes.clear();
       gameWon = false;
+      potionPosition = null;
       io.emit("rematchReady");
+      setTimeout(() => respawnPotion(), 500);
       console.log("🔁 Rematch lancé");
     }
   });
@@ -240,6 +299,7 @@ io.on("connection", (socket) => {
     if (Object.keys(players).length < 2) stopCountdown();
     if (Object.keys(players).length === 0) {
       gameWon = false;
+      potionPosition = null;
       rematchVotes.clear();
       console.log("🔄 Reset");
     }

@@ -43,6 +43,11 @@ export default class GameScene extends Phaser.Scene {
       socket.off("gameOver");
       socket.off("rematchReady");
       socket.off("scoresUpdated");
+      socket.off("allPositions");
+      socket.off("wallPotionCollected");
+      socket.off("leaderboardUpdated");
+      socket.off("potionSpawned");
+      socket.off("potionCollected");
     }
 
     // Reset caméra
@@ -89,30 +94,6 @@ export default class GameScene extends Phaser.Scene {
     this.phantomSystem = new PhantomSystem(this, this.player);
 
     // =========================
-    // TRAIL SYSTEM
-    // =========================
-    if (this.trailSystem) this.trailSystem.destroy();
-    this.trailSystem = new TrailSystem(this);
-
-    this._trailTimer = this.time.addEvent({
-      delay: 300,
-      loop: true,
-      callback: () => {
-        if (this.isGameFinished || this.observationSystem.isObservationPhase)
-          return;
-
-        const myColor =
-          this._lobbyPlayers[this.socketManager.myId]?.color || 0x00ffff;
-        this.trailSystem.addStep(this.player.x, this.player.y, myColor);
-
-        Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
-          const color = this._lobbyPlayers[id]?.color || 0xffffff;
-          this.trailSystem.addStep(sprite.x, sprite.y, color);
-        });
-      },
-    });
-
-    // =========================
     // GLANCE SYSTEM
     // =========================
     this.glanceSystem = new GlanceSystem(this, this.fogSystem);
@@ -124,18 +105,12 @@ export default class GameScene extends Phaser.Scene {
     this.createTrophy();
 
     // =========================
-    // POTION
-    // =========================
-    this.potion = new Potion(this, 0, 0);
-    this.potion.relocate();
-
-    // =========================
     // GAME STATE
     // =========================
     this.isGameFinished = false;
 
     // =========================
-    // SOCKET
+    // SOCKET — en premier avant tout le reste
     // =========================
     this.remotePlayers = {};
     this._lastPlayers = this._lobbyPlayers;
@@ -170,20 +145,24 @@ export default class GameScene extends Phaser.Scene {
       this.showEndScreen(winnerId === this.socketManager.myId);
     });
 
-    this.socketManager.socket.on("allPositions", (positions) => {
-      positions.forEach(({ id, x, y }) => {
-        if (id === this.socketManager.myId) {
-          // Mettre à jour mon rang avec ma vraie position
-          const myScore = this.scoreSystem.getScore(this.socketManager.myId);
-          this.leaderboardUI.update(id, this.player.x, this.player.y, myScore);
-        } else if (this.remotePlayers[id]) {
-          this.remotePlayers[id].setPosition(x, y);
-          const score = this.scoreSystem.getScore(id);
-          this.leaderboardUI.update(id, x, y, score);
-        }
-      });
-      this.leaderboardUI.sort();
+    // =========================
+    // POTION — après socketManager
+    // =========================
+    this.potion = new Potion(this, -1000, -1000);
+    this.potion.hide();
+
+    this.socketManager.socket.on("potionSpawned", ({ x, y }) => {
+      this.potion.moveTo(x, y);
     });
+
+    this.socketManager.socket.on("potionCollected", () => {
+      this.potion.hide();
+      if (this.phantomSystem.isPhantom) {
+        this.phantomSystem.cancel();
+      }
+    });
+
+    this.socketManager.socket.emit("requestPotionPosition");
 
     // =========================
     // SCORE + LEADERBOARD
@@ -201,14 +180,28 @@ export default class GameScene extends Phaser.Scene {
     const trophyX = (mazeData[0].length * tileSize) / 2;
     const trophyY = (mazeData.length * tileSize) / 2;
 
-    // Cleanup propre si rematch
-    if (this.leaderboardUI) {
-      this.leaderboardUI.destroy();
-    }
-
+    if (this.leaderboardUI) this.leaderboardUI.destroy();
     this.leaderboardUI = new LeaderboardUI(this);
     this.leaderboardUI.init(allPlayers, myId, trophyX, trophyY);
     this.leaderboardUI.setVisible(false);
+
+    // =========================
+    // allPositions — après leaderboard + scoreSystem
+    // =========================
+    this.socketManager.socket.on("allPositions", (positions) => {
+      if (!this.leaderboardUI || !this.scoreSystem) return;
+      positions.forEach(({ id, x, y }) => {
+        if (id === this.socketManager.myId) {
+          const myScore = this.scoreSystem.getScore(this.socketManager.myId);
+          this.leaderboardUI.update(id, this.player.x, this.player.y, myScore);
+        } else if (this.remotePlayers[id]) {
+          this.remotePlayers[id].setPosition(x, y);
+          const score = this.scoreSystem.getScore(id);
+          this.leaderboardUI.update(id, x, y, score);
+        }
+      });
+      this.leaderboardUI.sort();
+    });
 
     this.socketManager.socket.on("scoresUpdated", ({ scores }) => {
       Object.entries(scores).forEach(([id, score]) => {
@@ -237,6 +230,30 @@ export default class GameScene extends Phaser.Scene {
       this.socketManager.socket.emit("scoreUpdate", {
         scores: this.scoreSystem.all(),
       });
+    });
+
+    // =========================
+    // TRAIL SYSTEM — en dernier
+    // =========================
+    if (this.trailSystem) this.trailSystem.destroy();
+    this.trailSystem = new TrailSystem(this);
+
+    this._trailTimer = this.time.addEvent({
+      delay: 300,
+      loop: true,
+      callback: () => {
+        if (this.isGameFinished || this.observationSystem.isObservationPhase)
+          return;
+
+        const myColor =
+          this._lobbyPlayers[this.socketManager.myId]?.color || 0x00ffff;
+        this.trailSystem.addStep(this.player.x, this.player.y, myColor);
+
+        Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
+          const color = this._lobbyPlayers[id]?.color || 0xffffff;
+          this.trailSystem.addStep(sprite.x, sprite.y, color);
+        });
+      },
     });
   }
 
@@ -329,12 +346,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   collectPotion() {
-    this.potion.setVisible(false);
-    this.potion.setActive(false);
-    this.potion.body.enable = false;
-
-    // Enregistrer pour le scoring
+    this.potion.hide();
     this.scoreSystem.registerPotionUse(this.socketManager.myId);
+
+    this.socketManager.socket.emit("potionCollected", {
+      id: this.socketManager.myId,
+    });
 
     this.phantomSystem.activate(() => {
       this.potion.relocate();

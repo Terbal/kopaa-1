@@ -14,7 +14,6 @@ export default class FogSystem {
     this.canvas.height = H;
     this.ctx = this.canvas.getContext("2d");
 
-    // ← Fix : supprimer l'ancienne texture si elle existe
     if (scene.textures.exists("fogCanvas")) {
       scene.textures.remove("fogCanvas");
     }
@@ -32,7 +31,6 @@ export default class FogSystem {
     this.fogImage.setVisible(true);
   }
 
-  // Bruit organique simple — somme de sinus déphasés
   _noise(x, y, t) {
     return (
       Math.sin(x * 0.015 + t * 0.0008) * 0.3 +
@@ -61,10 +59,10 @@ export default class FogSystem {
     const H = this.canvas.height;
 
     // =========================
-    // 1. Fond noir
+    // 1. Fond gris anthracite
     // =========================
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "rgba(0, 0, 0, 1)";
+    ctx.fillStyle = "rgba(28, 28, 36, 1)";
     ctx.fillRect(0, 0, W, H);
 
     // =========================
@@ -72,18 +70,15 @@ export default class FogSystem {
     // =========================
     ctx.globalCompositeOperation = "destination-out";
 
-    // Rayon qui "respire" légèrement
     const breathe = Math.sin(this.time * 0.002) * 6;
     const baseRadius = this.visionRadius + breathe;
 
-    // Bords déformés — on trace un polygone irrégulier
     const points = 64;
     ctx.beginPath();
 
     for (let i = 0; i < points; i++) {
       const angle = (i / points) * Math.PI * 2;
 
-      // Déformation organique du bord
       const noise = this._noise(
         Math.cos(angle) * 100 + screenX,
         Math.sin(angle) * 100 + screenY,
@@ -100,7 +95,6 @@ export default class FogSystem {
 
     ctx.closePath();
 
-    // Gradient intérieur pour un fondu doux
     const gradient = ctx.createRadialGradient(
       screenX,
       screenY,
@@ -115,14 +109,13 @@ export default class FogSystem {
     ctx.fill();
 
     // =========================
-    // 3. Particules de brouillard flottantes
+    // 3. Particules de brouillard
     // =========================
     ctx.globalCompositeOperation = "source-over";
 
     const nbParticles = 18;
     for (let i = 0; i < nbParticles; i++) {
-      // Position orbitale autour du joueur, dans la zone de transition
-      const seed = i * 137.5; // angle d'or pour distribution uniforme
+      const seed = i * 137.5;
       const orbitAngle = (seed + this.time * 0.04) * (Math.PI / 180);
       const orbitDist =
         baseRadius * 0.75 + Math.sin(this.time * 0.003 + i) * 20;
@@ -131,12 +124,11 @@ export default class FogSystem {
       const py = screenY + Math.sin(orbitAngle) * orbitDist;
       const pRadius = 18 + Math.sin(this.time * 0.002 + i * 0.8) * 8;
 
-      // Opacité variable — effet de tourbillon
       const alpha = 0.06 + Math.abs(Math.sin(this.time * 0.0015 + i)) * 0.08;
 
       const pGrad = ctx.createRadialGradient(px, py, 0, px, py, pRadius);
-      pGrad.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
-      pGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      pGrad.addColorStop(0, `rgba(20, 20, 30, ${alpha})`);
+      pGrad.addColorStop(1, "rgba(20, 20, 30, 0)");
 
       ctx.fillStyle = pGrad;
       ctx.beginPath();
@@ -145,7 +137,23 @@ export default class FogSystem {
     }
 
     // =========================
-    // 4. Refresh texture Phaser
+    // 4. Vignette bords écran
+    // =========================
+    const vigGrad = ctx.createRadialGradient(
+      W / 2,
+      H / 2,
+      Math.min(W, H) * 0.3,
+      W / 2,
+      H / 2,
+      Math.max(W, H) * 0.8,
+    );
+    vigGrad.addColorStop(0, "rgba(0,0,0,0)");
+    vigGrad.addColorStop(1, "rgba(18, 18, 26, 0.5)");
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // =========================
+    // 5. Refresh texture Phaser
     // =========================
     this.scene.textures.get("fogCanvas").refresh();
   }

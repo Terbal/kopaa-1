@@ -33,6 +33,7 @@ export default class LeaderboardUI {
   // INIT
   // =========================
   init(players, myId, trophyX, trophyY) {
+    this._myDist = null;
     this.myId = myId;
     this.trophyX = trophyX;
     this.trophyY = trophyY;
