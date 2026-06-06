@@ -1,5 +1,9 @@
 import Phaser from "phaser";
 
+import { IS_MOBILE } from "../main";
+import JoystickSystem from "../systems/JoystickSystem";
+import GlanceButton from "../systems/GlanceButton";
+
 import Player from "../entities/Player";
 import mazeData from "../maze/mazeData";
 import MazeBuilder from "../systems/MazeBuilder";
@@ -98,6 +102,17 @@ export default class GameScene extends Phaser.Scene {
     // =========================
     this.glanceSystem = new GlanceSystem(this, this.fogSystem);
     this.glanceSystem.setVisible(false);
+
+    // =========================
+    // JOYSTICK + BOUTON MOBILE
+    // =========================
+    if (this.joystickSystem) this.joystickSystem.destroy();
+    if (this.glanceButton) this.glanceButton.destroy();
+
+    this.joystickSystem = new JoystickSystem(this);
+    this.glanceButton = new GlanceButton(this, this.glanceSystem);
+    this.joystickSystem.setVisible(false);
+    this.glanceButton.setVisible(false);
 
     // =========================
     // TROPHY
@@ -263,7 +278,7 @@ export default class GameScene extends Phaser.Scene {
     // =========================
     // PLAYER MOVE
     // =========================
-    this.player.move(this.cursors);
+    this.player.move(this.cursors, this.joystickSystem);
     this.trailSystem.update();
     this.trophy.update();
 
@@ -273,6 +288,8 @@ export default class GameScene extends Phaser.Scene {
     if (!this.observationSystem.isObservationPhase) {
       this.leaderboardUI.setVisible(true);
       this.glanceSystem.setVisible(true);
+      this.joystickSystem.setVisible(true); // ← ajouter
+      this.glanceButton.setVisible(true);
 
       const myScore = this.scoreSystem.getScore(this.socketManager.myId);
       this.leaderboardUI.update(
@@ -285,6 +302,8 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.leaderboardUI.setVisible(false);
       this.glanceSystem.setVisible(false);
+      this.joystickSystem.setVisible(false); // ← ajouter
+      this.glanceButton.setVisible(false); // ← ajouter
     }
 
     // =========================
@@ -380,6 +399,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   showEndScreen(isWinner) {
+    this.joystickSystem.setVisible(false);
+    this.glanceButton.setVisible(false);
     this.isGameFinished = true;
     this.player.setVelocity(0, 0);
     this.cameras.main.shake(300, 0.005);
