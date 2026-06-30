@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { IS_MOBILE } from "../main";
 import JoystickSystem from "../systems/JoystickSystem";
 import GlanceButton from "../systems/GlanceButton";
+import MinimapSystem from "../systems/MinimapSystem";
 
 import Player from "../entities/Player";
 import mazeData from "../maze/mazeData";
@@ -26,9 +27,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("player", "/player.png");
-    this.load.image("trophy", "/trophy.png");
-    this.load.image("potion", "/potion.png");
+    this.load.image("player_front", "/assets/player_front.png");
+    this.load.image("player_back", "/assets/player_back.png");
+    this.load.image("player_left", "/assets/player_left.png");
+    this.load.image("player_right", "/assets/player_right.png");
+    // this.load.image("trophy", "/assets/trophy.png");
+    // this.load.image("potion", "/assets/potion.png");
   }
 
   create() {
@@ -80,15 +84,20 @@ export default class GameScene extends Phaser.Scene {
     // =========================
     this.spawnSystem = new SpawnSystem();
     const spawn = this.spawnSystem.getRandomSpawn();
-    this.player = new Player(this, spawn.x, spawn.y);
+
+    // Couleur du joueur depuis le profil lobby
+    const myColor = this._lobbyPlayers[myId]?.color || 0xff8c00;
+    this.player = new Player(this, spawn.x, spawn.y, myColor);
     this.collisionSystem.playerVsWalls(this.player, this.walls);
 
     // =========================
     // WORLD SETUP
     // =========================
-    this.physics.world.setBounds(0, 0, 5000, 5000);
+    const mapW = mazeData[0].length * 64;
+    const mapH = mazeData.length * 64;
+    this.physics.world.setBounds(0, 0, mapW, mapH);
     this.cameras.main.startFollow(this.player);
-    this.cameras.main.setBounds(0, 0, 5000, 5000);
+    this.cameras.main.setBounds(0, 0, mapW, mapH);
 
     // =========================
     // SYSTEMS
@@ -108,7 +117,6 @@ export default class GameScene extends Phaser.Scene {
     // =========================
     if (this.joystickSystem) this.joystickSystem.destroy();
     if (this.glanceButton) this.glanceButton.destroy();
-
     this.joystickSystem = new JoystickSystem(this);
     this.glanceButton = new GlanceButton(this, this.glanceSystem);
     this.joystickSystem.setVisible(false);
@@ -125,7 +133,7 @@ export default class GameScene extends Phaser.Scene {
     this.isGameFinished = false;
 
     // =========================
-    // SOCKET — en premier avant tout le reste
+    // SOCKET
     // =========================
     this.remotePlayers = {};
     this._lastPlayers = this._lobbyPlayers;
@@ -146,11 +154,13 @@ export default class GameScene extends Phaser.Scene {
     this.socketManager.onPlayerMoved(({ id, x, y }) => {
       if (this.remotePlayers[id]) {
         this.remotePlayers[id].setPosition(x, y);
+        this.remotePlayers[id]._border?.setPosition(x, y);
       }
     });
 
     this.socketManager.onPlayerLeft(({ id }) => {
       if (this.remotePlayers[id]) {
+        this.remotePlayers[id]._border?.destroy();
         this.remotePlayers[id].destroy();
         delete this.remotePlayers[id];
       }
@@ -161,7 +171,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // =========================
-    // POTION — après socketManager
+    // POTION
     // =========================
     this.potion = new Potion(this, -1000, -1000);
     this.potion.hide();
@@ -186,7 +196,7 @@ export default class GameScene extends Phaser.Scene {
 
     const allPlayers = { ...this._lobbyPlayers };
     if (myId && !allPlayers[myId]) {
-      allPlayers[myId] = { id: myId, pseudo: "Moi", color: 0x00ffff };
+      allPlayers[myId] = { id: myId, pseudo: "Moi", color: myColor };
     }
 
     this.scoreSystem.init(allPlayers);
@@ -200,9 +210,7 @@ export default class GameScene extends Phaser.Scene {
     this.leaderboardUI.init(allPlayers, myId, trophyX, trophyY);
     this.leaderboardUI.setVisible(false);
 
-    // =========================
     // allPositions — après leaderboard + scoreSystem
-    // =========================
     this.socketManager.socket.on("allPositions", (positions) => {
       if (!this.leaderboardUI || !this.scoreSystem) return;
       positions.forEach(({ id, x, y }) => {
@@ -248,7 +256,14 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // =========================
-    // TRAIL SYSTEM — en dernier
+    // MINIMAP
+    // =========================
+    if (this.minimapSystem) this.minimapSystem.destroy();
+    this.minimapSystem = new MinimapSystem(this, myId);
+    this.minimapSystem.setVisible(false);
+
+    // =========================
+    // TRAIL SYSTEM
     // =========================
     if (this.trailSystem) this.trailSystem.destroy();
     this.trailSystem = new TrailSystem(this);
@@ -259,11 +274,9 @@ export default class GameScene extends Phaser.Scene {
       callback: () => {
         if (this.isGameFinished || this.observationSystem.isObservationPhase)
           return;
-
-        const myColor =
-          this._lobbyPlayers[this.socketManager.myId]?.color || 0x00ffff;
-        this.trailSystem.addStep(this.player.x, this.player.y, myColor);
-
+        const myCol =
+          this._lobbyPlayers[this.socketManager.myId]?.color || 0xff8c00;
+        this.trailSystem.addStep(this.player.x, this.player.y, myCol);
         Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
           const color = this._lobbyPlayers[id]?.color || 0xffffff;
           this.trailSystem.addStep(sprite.x, sprite.y, color);
@@ -276,19 +289,20 @@ export default class GameScene extends Phaser.Scene {
     if (this.isGameFinished) return;
 
     // =========================
-    // PLAYER MOVE
+    // PLAYER MOVE + GHOSTS
     // =========================
     this.player.move(this.cursors, this.joystickSystem);
+    this.player.updateGhosts(delta);
     this.trailSystem.update();
     this.trophy.update();
 
     // =========================
-    // LEADERBOARD
+    // LEADERBOARD VISIBILITY
     // =========================
     if (!this.observationSystem.isObservationPhase) {
       this.leaderboardUI.setVisible(true);
       this.glanceSystem.setVisible(true);
-      this.joystickSystem.setVisible(true); // ← ajouter
+      this.joystickSystem.setVisible(true);
       this.glanceButton.setVisible(true);
 
       const myScore = this.scoreSystem.getScore(this.socketManager.myId);
@@ -299,11 +313,30 @@ export default class GameScene extends Phaser.Scene {
         myScore,
       );
       this.leaderboardUI.sort();
+
+      // Minimap — mettre à jour ma position
+      this.minimapSystem.setVisible(true);
+      const myColor =
+        this._lobbyPlayers[this.socketManager.myId]?.color || 0xff8c00;
+      this.minimapSystem.updatePlayer(
+        this.socketManager.myId,
+        this.player.x,
+        this.player.y,
+        myColor,
+        true,
+      );
+
+      // Adversaires
+      Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
+        const color = this._lobbyPlayers[id]?.color || 0xffffff;
+        this.minimapSystem.updatePlayer(id, sprite.x, sprite.y, color, false);
+      });
     } else {
+      this.minimapSystem.setVisible(false);
       this.leaderboardUI.setVisible(false);
       this.glanceSystem.setVisible(false);
-      this.joystickSystem.setVisible(false); // ← ajouter
-      this.glanceButton.setVisible(false); // ← ajouter
+      this.joystickSystem.setVisible(false);
+      this.glanceButton.setVisible(false);
     }
 
     // =========================
@@ -323,7 +356,6 @@ export default class GameScene extends Phaser.Scene {
           remote.x,
           remote.y,
         );
-
         if (dist < 40) {
           const angle = Phaser.Math.Angle.Between(
             remote.x,
@@ -356,7 +388,7 @@ export default class GameScene extends Phaser.Scene {
     // =========================
     // FOG UPDATE
     // =========================
-    this.fogSystem.update(this.observationSystem.isObservationPhase, delta);
+    this.fogSystem.update(this.observationSystem.isObservationPhase);
 
     // =========================
     // WIN CHECK
@@ -367,14 +399,10 @@ export default class GameScene extends Phaser.Scene {
   collectPotion() {
     this.potion.hide();
     this.scoreSystem.registerPotionUse(this.socketManager.myId);
-
     this.socketManager.socket.emit("potionCollected", {
       id: this.socketManager.myId,
     });
-
-    this.phantomSystem.activate(() => {
-      this.potion.relocate();
-    });
+    this.phantomSystem.activate(() => {});
   }
 
   createTrophy() {
@@ -387,23 +415,13 @@ export default class GameScene extends Phaser.Scene {
     this.trophy.setDepth(10);
   }
 
-  addRemotePlayer({ id, x, y, color }) {
-    const sprite = this.add.rectangle(x, y, 40, 40, color);
-    sprite.setDepth(5);
-    this.remotePlayers[id] = sprite;
-  }
-
-  winGame() {
-    if (this.isGameFinished) return;
-    this.socketManager.sendWin();
-  }
-
   showEndScreen(isWinner) {
-    this.joystickSystem.setVisible(false);
-    this.glanceButton.setVisible(false);
+    this.minimapSystem?.setVisible(false);
+    this.leaderboardUI?.setVisible(false);
     this.isGameFinished = true;
     this.player.setVelocity(0, 0);
-    this.cameras.main.shake(300, 0.005);
+    this.joystickSystem?.setVisible(false);
+    this.glanceButton?.setVisible(false);
 
     // =========================
     // CALCUL SCORES FINAUX
@@ -411,22 +429,20 @@ export default class GameScene extends Phaser.Scene {
     const tileSize = 64;
     const trophyX = (mazeData[0].length * tileSize) / 2;
     const trophyY = (mazeData.length * tileSize) / 2;
+    const myId = this.socketManager.myId;
 
-    // Distances finales de tous les joueurs
-    const playerDistances = [];
+    const playerDistances = [
+      {
+        id: myId,
+        dist: Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          trophyX,
+          trophyY,
+        ),
+      },
+    ];
 
-    // Moi
-    playerDistances.push({
-      id: this.socketManager.myId,
-      dist: Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
-        trophyX,
-        trophyY,
-      ),
-    });
-
-    // Adversaires
     Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
       playerDistances.push({
         id,
@@ -441,152 +457,655 @@ export default class GameScene extends Phaser.Scene {
 
     const { scores, sorted } = this.scoreSystem.applyEndScores(playerDistances);
 
-    // Envoyer scores au serveur pour persistance
     const gameScores = sorted.map(({ id }) => ({
       id,
       pseudo: this._lastPlayers[id]?.pseudo || "Joueur",
       score: scores[id] || 0,
     }));
+
     this.socketManager.socket.emit("saveScores", { gameScores });
 
-    // Recevoir le leaderboard global mis à jour
-    this.socketManager.socket.once("leaderboardUpdated", (board) => {
-      this._showGlobalLeaderboard(board);
-    });
+    // =========================
+    // CINÉMATIQUE
+    // =========================
+    this.cameras.main.flash(300, 255, 255, 255, false);
+    this.cameras.main.shake(250, 0.003);
 
-    // Mettre à jour le leaderboard avec scores finaux
-    sorted.forEach(({ id, dist }) => {
-      const x =
-        id === this.socketManager.myId
-          ? this.player.x
-          : this.remotePlayers[id]?.x || 0;
-      const y =
-        id === this.socketManager.myId
-          ? this.player.y
-          : this.remotePlayers[id]?.y || 0;
-      this.leaderboardUI.update(id, x, y, scores[id]);
+    this.time.delayedCall(200, () => {
+      this.cameras.main.zoomTo(0.25, 400, "Sine.easeOut");
     });
-    this.leaderboardUI.sort();
-    this.leaderboardUI.setVisible(true);
 
     // =========================
-    // OVERLAY
+    // ATTENDRE LE LEADERBOARD GLOBAL
+    // =========================
+    this.socketManager.socket.once("leaderboardUpdated", (board) => {
+      this._buildEndScreen(isWinner, sorted, scores, board);
+    });
+  }
+
+  _buildEndScreen(isWinner, sorted, scores, board) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const myId = this.socketManager.myId;
+    const myRank = sorted.findIndex((p) => p.id === myId) + 1;
+    const medals = ["🥇", "🥈", "🥉"];
+
+    // =========================
+    // OVERLAY COMPLET
     // =========================
     this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.75)
+      .rectangle(0, 0, W, H, 0x000000, 0.92)
       .setScrollFactor(0)
-      .setDepth(9997)
+      .setDepth(9990)
       .setOrigin(0);
 
-    // Résultat principal
+    // =========================
+    // TITRE
+    // =========================
+    const medal = medals[myRank - 1] || `#${myRank}`;
     this.add
-      .text(
-        this.scale.width / 2,
-        this.scale.height / 2 - 120,
-        isWinner ? "WINNER 🏆" : "PERDU 💀",
-        {
-          fontSize: "72px",
-          color: isWinner ? "#ffd700" : "#ff4444",
-          fontStyle: "bold",
-          stroke: "#000000",
-          strokeThickness: 6,
-        },
-      )
+      .text(W / 2, H * 0.06, isWinner ? "VICTOIRE !" : "FIN DE PARTIE", {
+        fontSize: "32px",
+        color: isWinner ? "#ff8c00" : "#666666",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(9998);
+      .setDepth(9991);
 
-    // =========================
-    // RECAP SCORE
-    // =========================
-    const myScore = scores[this.socketManager.myId] || 0;
-    const myGlances =
-      this.scoreSystem.glanceCounts[this.socketManager.myId] || 0;
-    const myPotion = this.scoreSystem.usedPotion[this.socketManager.myId];
-    const myRank =
-      sorted.findIndex((p) => p.id === this.socketManager.myId) + 1;
-
-    const recapLines = [
-      `SCORE FINAL : ${myScore} pts`,
-      `Classement : #${myRank}/${sorted.length}`,
-      myGlances === 0
-        ? "✅ Aucun coup d'œil  (+25)"
-        : `❌ ${myGlances} coup(s) d'œil  (-${myGlances * 15})`,
-      myPotion ? "❌ Potion utilisée" : "✅ Sans potion  (+20)",
-    ];
-
-    recapLines.forEach((line, i) => {
-      this.add
-        .text(this.scale.width / 2, this.scale.height / 2 - 30 + i * 32, line, {
-          fontSize: i === 0 ? "26px" : "18px",
-          color: i === 0 ? "#ffd700" : "#cccccc",
-          stroke: "#000000",
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(9998);
-    });
-
-    // =========================
-    // BOUTONS
-    // =========================
-    const btnSame = this.add
-      .text(
-        this.scale.width / 2,
-        this.scale.height / 2 + 110,
-        "🔁  REJOUER ENSEMBLE",
-        {
-          fontSize: "26px",
-          color: "#ffffff",
-          backgroundColor: "#1a1a1a",
-          padding: { x: 24, y: 12 },
-          stroke: "#00ffcc",
-          strokeThickness: 2,
-        },
-      )
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(9999)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerover", () => btnSame.setStyle({ color: "#00ffcc" }))
-      .on("pointerout", () => btnSame.setStyle({ color: "#ffffff" }))
-      .on("pointerdown", () => {
-        this.waitingText.setText("En attente de l'autre joueur...");
-        this.socketManager.socket.emit("requestRematch");
-      });
-
-    const btnNew = this.add
-      .text(
-        this.scale.width / 2,
-        this.scale.height / 2 + 175,
-        "🔍  CHERCHER UN AUTRE JOUEUR",
-        {
-          fontSize: "20px",
-          color: "#aaaaaa",
-          backgroundColor: "#1a1a1a",
-          padding: { x: 24, y: 12 },
-        },
-      )
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(9999)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerover", () => btnNew.setStyle({ color: "#ffffff" }))
-      .on("pointerout", () => btnNew.setStyle({ color: "#aaaaaa" }))
-      .on("pointerdown", () => {
-        this.socketManager.disconnect();
-        this.scene.start("LobbyScene");
-      });
-
-    this.waitingText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2 + 148, "", {
+    this.add
+      .text(W / 2, H * 0.13, `${medal}  Tu termines ${myRank}e`, {
         fontSize: "16px",
         color: "#888888",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(9999);
+      .setDepth(9991);
+
+    // Séparateur
+    this.add
+      .rectangle(W / 2, H * 0.18, W * 0.85, 1, 0xff8c00, 0.2)
+      .setScrollFactor(0)
+      .setDepth(9991)
+      .setOrigin(0.5);
+
+    // =========================
+    // TABLEAU PARTIE EN COURS
+    // =========================
+    this.add
+      .text(W / 2, H * 0.2, "RÉSULTATS DE LA PARTIE", {
+        fontSize: "10px",
+        color: "#554433",
+        letterSpacing: 4,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9991);
+
+    // En-têtes tableau
+    const tableX = W / 2;
+    const tableW = Math.min(W * 0.88, 500);
+    const colRang = tableX - tableW / 2 + 20;
+    const colPseudo = tableX - tableW / 2 + 70;
+    const colPts = tableX + tableW / 2 - 80;
+    const colTotal = tableX + tableW / 2 - 10;
+    const headerY = H * 0.25;
+
+    // Fond tableau
+    this.add
+      .rectangle(
+        tableX,
+        headerY + 10,
+        tableW,
+        36 + sorted.length * 40,
+        0x0a0808,
+        0.8,
+      )
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(9990)
+      .setStrokeStyle(1, 0xff8c00, 0.15);
+
+    // Headers
+    [
+      [colRang, "RG"],
+      [colPseudo, "JOUEUR"],
+      [colPts, "CETTE PARTIE"],
+      [colTotal, "TOTAL"],
+    ].forEach(([x, label]) => {
+      this.add
+        .text(x, headerY, label, {
+          fontSize: "10px",
+          color: "#443322",
+          letterSpacing: 2,
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+    });
+
+    this.add
+      .rectangle(tableX, headerY + 18, tableW - 20, 1, 0xff8c00, 0.1)
+      .setScrollFactor(0)
+      .setDepth(9992)
+      .setOrigin(0.5);
+
+    // Lignes joueurs
+    sorted.forEach(({ id }, i) => {
+      const rowY = headerY + 28 + i * 40;
+      const isMe = id === myId;
+      const pseudo = this._lastPlayers[id]?.pseudo || "Joueur";
+      const ptsPartie = scores[id] || 0;
+      const color = this._lastPlayers[id]?.color || 0xffffff;
+      const hex = "#" + color.toString(16).padStart(6, "0");
+      const rankStr = medals[i] || `${i + 1}`;
+
+      // Highlight ma ligne
+      if (isMe) {
+        this.add
+          .rectangle(tableX, rowY + 12, tableW - 8, 34, 0xff8c00, 0.06)
+          .setOrigin(0.5, 0.5)
+          .setScrollFactor(0)
+          .setDepth(9991);
+      }
+
+      // Rang
+      this.add
+        .text(colRang, rowY, rankStr, {
+          fontSize: "16px",
+          color: isMe ? "#ff8c00" : "#555555",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Point couleur + pseudo
+      this.add
+        .circle(colPseudo + 6, rowY + 10, 6, color)
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      this.add
+        .text(colPseudo + 18, rowY, pseudo, {
+          fontSize: "15px",
+          color: isMe ? "#ffffff" : "#888888",
+          fontStyle: isMe ? "bold" : "normal",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Pts partie
+      this.add
+        .text(colPts, rowY, `+${ptsPartie}`, {
+          fontSize: "15px",
+          color: "#ffd700",
+          fontStyle: "bold",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Total cumulé — chercher dans le board
+      const boardEntry = board.find((b) => b.pseudo === pseudo);
+      const totalPts = boardEntry?.totalScore ?? ptsPartie;
+      this.add
+        .text(colTotal, rowY, `${totalPts}`, {
+          fontSize: "15px",
+          color: isMe ? "#ff8c00" : "#666666",
+          fontStyle: isMe ? "bold" : "normal",
+        })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Séparateur ligne
+      if (i < sorted.length - 1) {
+        this.add
+          .rectangle(tableX, rowY + 36, tableW - 20, 1, 0xff8c00, 0.05)
+          .setScrollFactor(0)
+          .setDepth(9991)
+          .setOrigin(0.5);
+      }
+    });
+
+    // Séparateur
+    const sepY = H * 0.25 + 28 + sorted.length * 40 + 20;
+    this.add
+      .rectangle(W / 2, sepY, W * 0.85, 1, 0xff8c00, 0.2)
+      .setScrollFactor(0)
+      .setDepth(9991)
+      .setOrigin(0.5);
+
+    // =========================
+    // BONUS / PÉNALITÉS (compact)
+    // =========================
+    const myGlances = this.scoreSystem.glanceCounts[myId] || 0;
+    const myPotion = this.scoreSystem.usedPotion[myId];
+    const bonusY = sepY + 16;
+
+    const bonusItems = [
+      myGlances === 0
+        ? "✅ Sans coup d'œil +25"
+        : `❌ ${myGlances} coup(s) d'œil -${myGlances * 15}`,
+      myPotion ? "❌ Potion utilisée" : "✅ Sans potion +20",
+    ];
+
+    bonusItems.forEach((txt, i) => {
+      this.add
+        .text(W / 2, bonusY + i * 22, txt, {
+          fontSize: "12px",
+          color: txt.startsWith("✅") ? "#00ff88" : "#ff4444",
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(9991);
+    });
+
+    // =========================
+    // BOUTONS
+    // =========================
+    const btnY = bonusY + bonusItems.length * 22 + 28;
+
+    const btnSame = this.add
+      .text(W / 2, btnY, "🔁  REJOUER ENSEMBLE", {
+        fontSize: "16px",
+        color: "#000000",
+        backgroundColor: "#ff8c00",
+        padding: { x: 28, y: 14 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => btnSame.setAlpha(0.8))
+      .on("pointerout", () => btnSame.setAlpha(1))
+      .on("pointerdown", () => {
+        this.waitingText.setText("En attente...");
+        this.socketManager.socket.emit("requestRematch");
+      });
+
+    this.waitingText = this.add
+      .text(W / 2, btnY + 48, "", {
+        fontSize: "12px",
+        color: "#443322",
+        letterSpacing: 2,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993);
+
+    const btnNew = this.add
+      .text(W / 2, btnY + 68, "🔍  CHERCHER UN AUTRE JOUEUR", {
+        fontSize: "12px",
+        color: "#443322",
+        letterSpacing: 1,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => btnNew.setStyle({ color: "#ff8c00" }))
+      .on("pointerout", () => btnNew.setStyle({ color: "#443322" }))
+      .on("pointerdown", () => {
+        this.socketManager.disconnect();
+        window.location.href = "/";
+      });
+
+    this.socketManager.socket.on("rematchReady", () => {
+      this.scene.start("GameScene", {
+        socket: this.socketManager.socket,
+        myId: this.socketManager.myId,
+        players: this._lastPlayers,
+      });
+    });
+  }
+
+  addRemotePlayer(p) {
+  if (!p?.id || this.remotePlayers[p.id]) return;
+
+  const sprite = new Player(this, p.x || 500, p.y || 500, p.color || 0xffffff);
+  this.remotePlayers[p.id] = sprite;
+  this.collisionSystem.playerVsWalls(sprite, this.walls);
+}
+
+  winGame() {
+    if (this.isGameFinished) return;
+    this.socketManager.sendWin();
+  }
+
+  showEndScreen(isWinner) {
+    this.minimapSystem?.setVisible(false);
+    this.leaderboardUI?.setVisible(false);
+    this.isGameFinished = true;
+    this.player.setVelocity(0, 0);
+    this.joystickSystem?.setVisible(false);
+    this.glanceButton?.setVisible(false);
+
+    // =========================
+    // CALCUL SCORES FINAUX
+    // =========================
+    const tileSize = 64;
+    const trophyX = (mazeData[0].length * tileSize) / 2;
+    const trophyY = (mazeData.length * tileSize) / 2;
+    const myId = this.socketManager.myId;
+
+    const playerDistances = [
+      {
+        id: myId,
+        dist: Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          trophyX,
+          trophyY,
+        ),
+      },
+    ];
+
+    Object.entries(this.remotePlayers).forEach(([id, sprite]) => {
+      playerDistances.push({
+        id,
+        dist: Phaser.Math.Distance.Between(
+          sprite.x,
+          sprite.y,
+          trophyX,
+          trophyY,
+        ),
+      });
+    });
+
+    const { scores, sorted } = this.scoreSystem.applyEndScores(playerDistances);
+
+    const gameScores = sorted.map(({ id }) => ({
+      id,
+      pseudo: this._lastPlayers[id]?.pseudo || "Joueur",
+      score: scores[id] || 0,
+    }));
+
+    this.socketManager.socket.emit("saveScores", { gameScores });
+
+    // =========================
+    // CINÉMATIQUE
+    // =========================
+    this.cameras.main.flash(300, 255, 255, 255, false);
+    this.cameras.main.shake(250, 0.003);
+
+    this.time.delayedCall(200, () => {
+      this.cameras.main.zoomTo(0.25, 400, "Sine.easeOut");
+    });
+
+    // =========================
+    // ATTENDRE LE LEADERBOARD GLOBAL
+    // =========================
+    this.socketManager.socket.once("leaderboardUpdated", (board) => {
+      this._buildEndScreen(isWinner, sorted, scores, board);
+    });
+  }
+
+  _buildEndScreen(isWinner, sorted, scores, board) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const myId = this.socketManager.myId;
+    const myRank = sorted.findIndex((p) => p.id === myId) + 1;
+    const medals = ["🥇", "🥈", "🥉"];
+
+    // =========================
+    // OVERLAY COMPLET
+    // =========================
+    this.add
+      .rectangle(0, 0, W, H, 0x000000, 0.92)
+      .setScrollFactor(0)
+      .setDepth(9990)
+      .setOrigin(0);
+
+    // =========================
+    // TITRE
+    // =========================
+    const medal = medals[myRank - 1] || `#${myRank}`;
+    this.add
+      .text(W / 2, H * 0.06, isWinner ? "VICTOIRE !" : "FIN DE PARTIE", {
+        fontSize: "32px",
+        color: isWinner ? "#ff8c00" : "#666666",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9991);
+
+    this.add
+      .text(W / 2, H * 0.13, `${medal}  Tu termines ${myRank}e`, {
+        fontSize: "16px",
+        color: "#888888",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9991);
+
+    // Séparateur
+    this.add
+      .rectangle(W / 2, H * 0.18, W * 0.85, 1, 0xff8c00, 0.2)
+      .setScrollFactor(0)
+      .setDepth(9991)
+      .setOrigin(0.5);
+
+    // =========================
+    // TABLEAU PARTIE EN COURS
+    // =========================
+    this.add
+      .text(W / 2, H * 0.2, "RÉSULTATS DE LA PARTIE", {
+        fontSize: "10px",
+        color: "#554433",
+        letterSpacing: 4,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9991);
+
+    // En-têtes tableau
+    const tableX = W / 2;
+    const tableW = Math.min(W * 0.88, 500);
+    const colRang = tableX - tableW / 2 + 20;
+    const colPseudo = tableX - tableW / 2 + 70;
+    const colPts = tableX + tableW / 2 - 80;
+    const colTotal = tableX + tableW / 2 - 10;
+    const headerY = H * 0.25;
+
+    // Fond tableau
+    this.add
+      .rectangle(
+        tableX,
+        headerY + 10,
+        tableW,
+        36 + sorted.length * 40,
+        0x0a0808,
+        0.8,
+      )
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(9990)
+      .setStrokeStyle(1, 0xff8c00, 0.15);
+
+    // Headers
+    [
+      [colRang, "RG"],
+      [colPseudo, "JOUEUR"],
+      [colPts, "CETTE PARTIE"],
+      [colTotal, "TOTAL"],
+    ].forEach(([x, label]) => {
+      this.add
+        .text(x, headerY, label, {
+          fontSize: "10px",
+          color: "#443322",
+          letterSpacing: 2,
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+    });
+
+    this.add
+      .rectangle(tableX, headerY + 18, tableW - 20, 1, 0xff8c00, 0.1)
+      .setScrollFactor(0)
+      .setDepth(9992)
+      .setOrigin(0.5);
+
+    // Lignes joueurs
+    sorted.forEach(({ id }, i) => {
+      const rowY = headerY + 28 + i * 40;
+      const isMe = id === myId;
+      const pseudo = this._lastPlayers[id]?.pseudo || "Joueur";
+      const ptsPartie = scores[id] || 0;
+      const color = this._lastPlayers[id]?.color || 0xffffff;
+      const hex = "#" + color.toString(16).padStart(6, "0");
+      const rankStr = medals[i] || `${i + 1}`;
+
+      // Highlight ma ligne
+      if (isMe) {
+        this.add
+          .rectangle(tableX, rowY + 12, tableW - 8, 34, 0xff8c00, 0.06)
+          .setOrigin(0.5, 0.5)
+          .setScrollFactor(0)
+          .setDepth(9991);
+      }
+
+      // Rang
+      this.add
+        .text(colRang, rowY, rankStr, {
+          fontSize: "16px",
+          color: isMe ? "#ff8c00" : "#555555",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Point couleur + pseudo
+      this.add
+        .circle(colPseudo + 6, rowY + 10, 6, color)
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      this.add
+        .text(colPseudo + 18, rowY, pseudo, {
+          fontSize: "15px",
+          color: isMe ? "#ffffff" : "#888888",
+          fontStyle: isMe ? "bold" : "normal",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Pts partie
+      this.add
+        .text(colPts, rowY, `+${ptsPartie}`, {
+          fontSize: "15px",
+          color: "#ffd700",
+          fontStyle: "bold",
+        })
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Total cumulé — chercher dans le board
+      const boardEntry = board.find((b) => b.pseudo === pseudo);
+      const totalPts = boardEntry?.totalScore ?? ptsPartie;
+      this.add
+        .text(colTotal, rowY, `${totalPts}`, {
+          fontSize: "15px",
+          color: isMe ? "#ff8c00" : "#666666",
+          fontStyle: isMe ? "bold" : "normal",
+        })
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(9992);
+
+      // Séparateur ligne
+      if (i < sorted.length - 1) {
+        this.add
+          .rectangle(tableX, rowY + 36, tableW - 20, 1, 0xff8c00, 0.05)
+          .setScrollFactor(0)
+          .setDepth(9991)
+          .setOrigin(0.5);
+      }
+    });
+
+    // Séparateur
+    const sepY = H * 0.25 + 28 + sorted.length * 40 + 20;
+    this.add
+      .rectangle(W / 2, sepY, W * 0.85, 1, 0xff8c00, 0.2)
+      .setScrollFactor(0)
+      .setDepth(9991)
+      .setOrigin(0.5);
+
+    // =========================
+    // BONUS / PÉNALITÉS (compact)
+    // =========================
+    const myGlances = this.scoreSystem.glanceCounts[myId] || 0;
+    const myPotion = this.scoreSystem.usedPotion[myId];
+    const bonusY = sepY + 16;
+
+    const bonusItems = [
+      myGlances === 0
+        ? "✅ Sans coup d'œil +25"
+        : `❌ ${myGlances} coup(s) d'œil -${myGlances * 15}`,
+      myPotion ? "❌ Potion utilisée" : "✅ Sans potion +20",
+    ];
+
+    bonusItems.forEach((txt, i) => {
+      this.add
+        .text(W / 2, bonusY + i * 22, txt, {
+          fontSize: "12px",
+          color: txt.startsWith("✅") ? "#00ff88" : "#ff4444",
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(9991);
+    });
+
+    // =========================
+    // BOUTONS
+    // =========================
+    const btnY = bonusY + bonusItems.length * 22 + 28;
+
+    const btnSame = this.add
+      .text(W / 2, btnY, "🔁  REJOUER ENSEMBLE", {
+        fontSize: "16px",
+        color: "#000000",
+        backgroundColor: "#ff8c00",
+        padding: { x: 28, y: 14 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => btnSame.setAlpha(0.8))
+      .on("pointerout", () => btnSame.setAlpha(1))
+      .on("pointerdown", () => {
+        this.waitingText.setText("En attente...");
+        this.socketManager.socket.emit("requestRematch");
+      });
+
+    this.waitingText = this.add
+      .text(W / 2, btnY + 48, "", {
+        fontSize: "12px",
+        color: "#443322",
+        letterSpacing: 2,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993);
+
+    const btnNew = this.add
+      .text(W / 2, btnY + 68, "🔍  CHERCHER UN AUTRE JOUEUR", {
+        fontSize: "12px",
+        color: "#443322",
+        letterSpacing: 1,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9993)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => btnNew.setStyle({ color: "#ff8c00" }))
+      .on("pointerout", () => btnNew.setStyle({ color: "#443322" }))
+      .on("pointerdown", () => {
+        this.socketManager.disconnect();
+        window.location.href = "/";
+      });
 
     this.socketManager.socket.on("rematchReady", () => {
       this.scene.start("GameScene", {
@@ -601,95 +1120,78 @@ export default class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    // Fond panneau
-    const panelW = 320;
-    const panelH = Math.min(board.length * 36 + 60, 400);
-    const panelX = W / 2 + 220;
-    const panelY = H / 2 - panelH / 2 - 30;
+    const panelW = 260;
+    const panelH = Math.min(board.length * 34 + 56, 360);
+    const panelX = W / 2 + 200;
+    const panelY = H / 2 - panelH / 2;
 
     this.add
-      .rectangle(panelX, panelY, panelW, panelH, 0x000000, 0.85)
+      .rectangle(panelX, panelY, panelW, panelH, 0x060408, 0.92)
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
-      .setDepth(9998);
+      .setDepth(9991)
+      .setStrokeStyle(1, 0xff8c00, 0.2);
 
     this.add
-      .text(panelX, panelY + 14, "🏅 CLASSEMENT GÉNÉRAL", {
-        fontSize: "14px",
-        color: "#ffd700",
+      .text(panelX, panelY + 14, "CLASSEMENT GÉNÉRAL", {
+        fontSize: "11px",
+        color: "#ff8c00",
+        letterSpacing: 3,
         fontStyle: "bold",
-        letterSpacing: 2,
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
-      .setDepth(9999);
-
-    // En-têtes
-    this.add
-      .text(panelX - 140, panelY + 38, "#  JOUEUR", {
-        fontSize: "11px",
-        color: "#444466",
-        letterSpacing: 2,
-      })
-      .setScrollFactor(0)
-      .setDepth(9999);
+      .setDepth(9992);
 
     this.add
-      .text(panelX + 100, panelY + 38, "TOTAL", {
-        fontSize: "11px",
-        color: "#444466",
-        letterSpacing: 2,
-      })
+      .rectangle(panelX, panelY + 30, panelW - 20, 1, 0xff8c00, 0.1)
       .setScrollFactor(0)
-      .setDepth(9999);
+      .setDepth(9992);
 
-    // Lignes
     const medals = ["🥇", "🥈", "🥉"];
-    const maxRows = Math.floor((panelH - 60) / 36);
+    const maxRows = Math.floor((panelH - 56) / 34);
+    const myPseudo = this._lastPlayers[this.socketManager.myId]?.pseudo;
 
     board.slice(0, maxRows).forEach((p, i) => {
-      const y = panelY + 60 + i * 36;
-      const isMe =
-        p.pseudo === this._lastPlayers[this.socketManager.myId]?.pseudo;
+      const y = panelY + 40 + i * 34;
+      const isMe = p.pseudo === myPseudo;
       const rank = medals[i] || `${i + 1}.`;
 
-      // Highlight si c'est moi
       if (isMe) {
         this.add
-          .rectangle(panelX, y + 10, panelW - 20, 30, 0x00ffcc, 0.08)
+          .rectangle(panelX, y + 12, panelW - 16, 28, 0xff8c00, 0.07)
           .setOrigin(0.5, 0.5)
           .setScrollFactor(0)
-          .setDepth(9998);
+          .setDepth(9991);
       }
 
       this.add
-        .text(panelX - 140, y, `${rank}  ${p.pseudo}`, {
-          fontSize: "15px",
-          color: isMe ? "#00ffcc" : "#cccccc",
+        .text(panelX - 110, y, `${rank}  ${p.pseudo}`, {
+          fontSize: "13px",
+          color: isMe ? "#ff8c00" : "#666666",
           fontStyle: isMe ? "bold" : "normal",
         })
         .setScrollFactor(0)
-        .setDepth(9999);
+        .setDepth(9992);
 
       this.add
-        .text(panelX + 140, y, `${p.totalScore} pts`, {
-          fontSize: "15px",
+        .text(panelX + 110, y, `${p.totalScore} pts`, {
+          fontSize: "13px",
           color: "#ffd700",
           fontStyle: "bold",
         })
         .setOrigin(1, 0)
         .setScrollFactor(0)
-        .setDepth(9999);
+        .setDepth(9992);
 
-      // Parties jouées
       this.add
-        .text(panelX + 140, y + 18, `${p.gamesPlayed} partie(s)`, {
-          fontSize: "10px",
-          color: "#444466",
+        .text(panelX + 110, y + 16, `${p.gamesPlayed} partie(s)`, {
+          fontSize: "9px",
+          color: "#332211",
         })
         .setOrigin(1, 0)
         .setScrollFactor(0)
-        .setDepth(9999);
+        .setDepth(9992);
     });
   }
 }

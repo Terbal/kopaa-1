@@ -7,237 +7,125 @@ export default class LobbyScene extends Phaser.Scene {
   }
 
   create() {
+    // =========================
+    // PROFIL — lu depuis sessionStorage
+    // =========================
+    let profile = null;
+    try {
+      profile = JSON.parse(sessionStorage.getItem("mazecup_session"));
+    } catch {}
+
+    if (!profile) {
+      // Pas de profil → retour accueil
+      window.location.href = "/";
+      return;
+    }
+
+    this.myPseudo = profile.pseudo;
+    this.myColor = profile.color;
+
+    // =========================
+    // ÉTAT
+    // =========================
     this.socket = null;
     this.players = {};
     this.myId = null;
     this.isHost = false;
     this.playerRows = {};
-    this.messages = [];
-
-    // =========================
-    // FOND
-    // =========================
-    this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x0a0a0a)
-      .setOrigin(0);
-
-    // =========================
-    // TITRE
-    // =========================
-    this.add
-      .text(this.scale.width / 2, 50, "🏆 MAZE CUP", {
-        fontSize: "52px",
-        color: "#ffd700",
-        fontStyle: "bold",
-        stroke: "#000000",
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5);
-
-    // =========================
-    // PSEUDO INPUT (HTML overlay)
-    // =========================
-    this.createPseudoInput();
-
-    // =========================
-    // ZONE JOUEURS
-    // =========================
-    this.add.text(this.scale.width / 2 - 200, 130, "JOUEURS", {
-      fontSize: "20px",
-      color: "#888888",
-    });
-
-    this.playersContainer = this.add.container(this.scale.width / 2 - 200, 160);
-
-    // =========================
-    // CHAT UI
-    // =========================
-    this.createChatUI();
-
-    // =========================
-    // COUNTDOWN TEXT
-    // =========================
-    this.countdownText = this.add
-      .text(this.scale.width / 2, this.scale.height - 120, "", {
-        fontSize: "32px",
-        color: "#00ffcc",
-        fontStyle: "bold",
-        stroke: "#000000",
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5);
-
-    // =========================
-    // BOUTON START (host)
-    // =========================
-    this.startBtn = this.add
-      .text(
-        this.scale.width / 2,
-        this.scale.height - 60,
-        "▶ LANCER LA PARTIE",
-        {
-          fontSize: "28px",
-          color: "#ffffff",
-          backgroundColor: "#222222",
-          padding: { x: 20, y: 10 },
-          stroke: "#00ffcc",
-          strokeThickness: 2,
-        },
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-      .setVisible(false)
-      .on("pointerover", () => this.startBtn.setStyle({ color: "#00ffcc" }))
-      .on("pointerout", () => this.startBtn.setStyle({ color: "#ffffff" }))
-      .on("pointerdown", () => this.socket?.emit("forceStart"));
-  }
-
-  // =========================
-  // PSEUDO INPUT
-  // =========================
-  create() {
-    this.socket = null;
-    this.players = {};
-    this.myId = null;
-    this.isHost = false;
-    this.playerRows = {};
-    this.messages = [];
+    this.chatLines = [];
+    this._lbObjects = [];
 
     const W = this.scale.width;
     const H = this.scale.height;
 
     // =========================
-    // FOND DÉGRADÉ
+    // FOND
     // =========================
     this.add.rectangle(0, 0, W, H, 0x080810).setOrigin(0);
-
-    // Lignes décoratives néon
     for (let i = 0; i < 6; i++) {
-      this.add.rectangle(0, H * 0.15 * i, W, 1, 0x00ffcc, 0.05).setOrigin(0);
+      this.add.rectangle(0, H * 0.15 * i, W, 1, 0xff8c00, 0.04).setOrigin(0);
     }
 
     // =========================
     // TITRE
     // =========================
     this.add
-      .text(W / 2, H * 0.1, "🏆 MAZE CUP", {
-        fontSize: "56px",
-        color: "#ffd700",
+      .text(W / 2, H * 0.06, "MAZE CUP", {
+        fontFamily: "'Orbitron', monospace",
+        fontSize: "clamp(28px, 5vw, 42px)",
+        color: "#ff8c00",
         fontStyle: "bold",
         stroke: "#000000",
-        strokeThickness: 8,
+        strokeThickness: 4,
       })
       .setOrigin(0.5);
 
+    // =========================
+    // PROFIL AFFICHÉ
+    // =========================
+    const hexColor =
+      "#" + (this.myColor || 0xff8c00).toString(16).padStart(6, "0");
+
     this.add
-      .text(W / 2, H * 0.1 + 60, "mémorise • survive • gagne", {
+      .circle(W / 2 - 160, H * 0.14, 18, this.myColor || 0xff8c00)
+      .setStrokeStyle(1, 0xffffff, 0.2);
+
+    this.add
+      .text(W / 2 - 135, H * 0.14, this.myPseudo, {
         fontSize: "18px",
-        color: "#555566",
-        fontStyle: "italic",
+        color: hexColor,
+        fontStyle: "bold",
       })
-      .setOrigin(0.5);
+      .setOrigin(0, 0.5);
 
-    // =========================
-    // CARTE CENTRALE (zone pseudo)
-    // =========================
-    const cardW = 420;
-    const cardH = 200;
-    const cardX = W / 2 - cardW / 2;
-    const cardY = H * 0.28;
-
-    this.add
-      .rectangle(W / 2, cardY + cardH / 2, cardW, cardH, 0x111122, 0.95)
-      .setOrigin(0.5)
-      .setStrokeStyle(1, 0x00ffcc, 0.4);
-
-    this.add
-      .text(W / 2, cardY + 28, "ENTRE TON PSEUDO", {
-        fontSize: "16px",
-        color: "#666688",
-        letterSpacing: 4,
+    const changeBtn = this.add
+      .text(W / 2 + 80, H * 0.14, "CHANGER", {
+        fontSize: "10px",
+        color: "#443322",
+        letterSpacing: 2,
       })
-      .setOrigin(0.5);
-
-    // Input HTML centré dans la carte
-    this.pseudoInput = document.createElement("input");
-    this.pseudoInput.type = "text";
-    this.pseudoInput.placeholder = "Pseudo...";
-    this.pseudoInput.maxLength = 16;
-    Object.assign(this.pseudoInput.style, {
-      position: "fixed",
-      top: `${cardY + 60}px`,
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "280px",
-      padding: "12px 20px",
-      fontSize: "20px",
-      background: "#0d0d1a",
-      color: "#ffffff",
-      border: "2px solid #00ffcc44",
-      borderRadius: "10px",
-      outline: "none",
-      textAlign: "center",
-      letterSpacing: "2px",
-      zIndex: "100",
-    });
-    document.body.appendChild(this.pseudoInput);
-
-    // Bouton REJOINDRE
-    this.joinBtn = document.createElement("button");
-    this.joinBtn.textContent = "▶  REJOINDRE";
-    Object.assign(this.joinBtn.style, {
-      position: "fixed",
-      top: `${cardY + 130}px`,
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "280px",
-      padding: "12px 0",
-      fontSize: "18px",
-      fontWeight: "bold",
-      background: "linear-gradient(135deg, #00ffcc, #0088ff)",
-      color: "#000000",
-      border: "none",
-      borderRadius: "10px",
-      cursor: "pointer",
-      letterSpacing: "2px",
-      zIndex: "100",
-    });
-    document.body.appendChild(this.joinBtn);
-
-    this.joinBtn.addEventListener("click", () => this.joinLobby());
-    this.pseudoInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.joinLobby();
-    });
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerover", () => changeBtn.setStyle({ color: "#ff8c00" }))
+      .on("pointerout", () => changeBtn.setStyle({ color: "#443322" }))
+      .on("pointerdown", () => {
+        window.location.href = "/";
+      });
 
     // =========================
-    // ZONE JOUEURS (gauche)
+    // JOUEURS CONNECTÉS
     // =========================
-    const playersX = W / 2 - 260;
-    const playersY = H * 0.56;
+    const playersX = W * 0.1;
+    const playersY = H * 0.25;
 
-    this.add.text(playersX, playersY - 30, "JOUEURS CONNECTÉS", {
-      fontSize: "14px",
-      color: "#445566",
+    this.add.text(playersX, playersY - 24, "JOUEURS CONNECTÉS", {
+      fontSize: "11px",
+      color: "#443322",
       letterSpacing: 3,
     });
 
     this.playersContainer = this.add.container(playersX, playersY);
 
     // =========================
-    // CHAT (droite)
+    // CHAT
     // =========================
-    this.createChatUI();
+    this._createChatUI();
+
+    // =========================
+    // LEADERBOARD (droite)
+    // =========================
+    this._createLeaderboardPanel();
 
     // =========================
     // COUNTDOWN
     // =========================
     this.countdownText = this.add
       .text(W / 2, H * 0.88, "", {
-        fontSize: "28px",
-        color: "#00ffcc",
+        fontSize: "24px",
+        color: "#ff8c00",
         fontStyle: "bold",
         stroke: "#000000",
-        strokeThickness: 4,
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
 
@@ -245,39 +133,33 @@ export default class LobbyScene extends Phaser.Scene {
     // BOUTON START HOST
     // =========================
     this.startBtn = this.add
-      .text(W / 2, H * 0.94, "▶ LANCER MAINTENANT", {
-        fontSize: "22px",
-        color: "#ffffff",
-        backgroundColor: "#0d1a0d",
-        padding: { x: 20, y: 10 },
-        stroke: "#00ff88",
-        strokeThickness: 1,
+      .text(W / 2, H * 0.94, "▶  LANCER MAINTENANT", {
+        fontSize: "18px",
+        color: "#000000",
+        backgroundColor: "#ff8c00",
+        padding: { x: 24, y: 12 },
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .setVisible(false)
-      .on("pointerover", () => this.startBtn.setStyle({ color: "#00ff88" }))
-      .on("pointerout", () => this.startBtn.setStyle({ color: "#ffffff" }))
+      .on("pointerover", () => this.startBtn.setAlpha(0.8))
+      .on("pointerout", () => this.startBtn.setAlpha(1))
       .on("pointerdown", () => this.socket?.emit("forceStart"));
+
+    // =========================
+    // CONNEXION SOCKET
+    // =========================
+    this._connect();
   }
 
-  joinLobby() {
-    const pseudo = this.pseudoInput.value.trim() || "Joueur";
-
-    // Cacher l'input
-    this.pseudoInput.remove();
-    this.joinBtn.remove();
-
-    // Connexion socket
+  _connect() {
     this.socket = io("http://localhost:3000");
 
     this.socket.on("init", ({ myId, players, isHost }) => {
       this.myId = myId;
       this.isHost = isHost;
       this.players = players;
-
       Object.values(players).forEach((p) => this.addPlayerRow(p));
-
       if (isHost) this.startBtn.setVisible(true);
     });
 
@@ -301,17 +183,21 @@ export default class LobbyScene extends Phaser.Scene {
         this.countdownText.setText("");
       } else {
         this.countdownText.setText(
-          value > 0 ? `Début dans ${value}s...` : "C'est parti !",
+          value > 0 ? `DÉBUT DANS ${value}s` : "C'EST PARTI !",
         );
       }
     });
 
     this.socket.on("chatMessage", ({ pseudo, text, color }) => {
-      this.addChatMessage(pseudo, text, color);
+      this._addChatMessage(pseudo, text, color);
+    });
+
+    this.socket.on("leaderboardUpdated", (board) => {
+      this._renderLeaderboard(board);
     });
 
     this.socket.on("startGame", () => {
-      // Passer le socket à GameScene
+      this.chatInput?.remove();
       this.scene.start("GameScene", {
         socket: this.socket,
         myId: this.myId,
@@ -319,40 +205,38 @@ export default class LobbyScene extends Phaser.Scene {
       });
     });
 
-    this.socket.emit("joinLobby", { pseudo });
-
-    // Demander le leaderboard global
-    this.socket.emit("getLeaderboard");
-    this.socket.on("leaderboardUpdated", (board) => {
-      this._renderGlobalLeaderboard(board);
+    this.socket.emit("joinLobby", {
+      pseudo: this.myPseudo,
+      color: this.myColor,
     });
+
+    this.socket.emit("getLeaderboard");
   }
 
   // =========================
   // PLAYER ROWS
   // =========================
   addPlayerRow(p) {
-    const y = Object.keys(this.playerRows).length * 44;
+    const y = Object.keys(this.playerRows).length * 40;
     const color = p.color || 0xffffff;
+    const hex = "#" + color.toString(16).padStart(6, "0");
 
     const row = this.add.container(0, y);
-    const dot = this.add.circle(0, 12, 10, color);
-    const name = this.add.text(22, 2, p.pseudo, {
-      fontSize: "20px",
-      color: "#ffffff",
+    const dot = this.add.circle(6, 14, 8, color);
+    const name = this.add.text(22, 4, p.pseudo, {
+      fontSize: "16px",
+      color: "#cccccc",
     });
-    const ready = this.add.text(200, 2, p.ready ? "✅" : "⏳", {
-      fontSize: "18px",
-    });
+    const status = this.add.text(180, 4, "⏳", { fontSize: "14px" });
 
-    row.add([dot, name, ready]);
+    row.add([dot, name, status]);
     this.playersContainer.add(row);
-    this.playerRows[p.id] = { row, ready };
+    this.playerRows[p.id] = { row, status };
   }
 
   updatePlayerRow(p) {
     if (this.playerRows[p.id]) {
-      this.playerRows[p.id].ready.setText(p.ready ? "✅" : "⏳");
+      this.playerRows[p.id].status.setText(p.ready ? "✅" : "⏳");
     }
   }
 
@@ -364,17 +248,17 @@ export default class LobbyScene extends Phaser.Scene {
   }
 
   // =========================
-  // CHAT UI
+  // CHAT
   // =========================
-  createChatUI() {
+  _createChatUI() {
     const W = this.scale.width;
     const H = this.scale.height;
-    const cx = W / 2 + 80;
-    const cy = H * 0.56;
+    const cx = W * 0.38;
+    const cy = H * 0.25;
 
-    this.add.text(cx, cy - 30, "CHAT", {
-      fontSize: "14px",
-      color: "#445566",
+    this.add.text(cx, cy - 24, "CHAT", {
+      fontSize: "11px",
+      color: "#443322",
       letterSpacing: 3,
     });
 
@@ -383,21 +267,22 @@ export default class LobbyScene extends Phaser.Scene {
 
     this.chatInput = document.createElement("input");
     this.chatInput.type = "text";
-    this.chatInput.placeholder = "Envoyer un message...";
+    this.chatInput.placeholder = "Message...";
     this.chatInput.maxLength = 100;
     Object.assign(this.chatInput.style, {
       position: "fixed",
-      bottom: "48px",
-      left: `${cx}px`,
-      width: "260px",
+      bottom: "40px",
+      left: `${W * 0.38}px`,
+      width: "240px",
       padding: "8px 14px",
-      fontSize: "14px",
-      background: "#0d0d1a",
+      fontSize: "13px",
+      background: "#060408",
       color: "#ffffff",
-      border: "1px solid #333355",
+      border: "1px solid rgba(255,140,0,0.15)",
       borderRadius: "6px",
       outline: "none",
       zIndex: "100",
+      fontFamily: "Inter, sans-serif",
     });
     document.body.appendChild(this.chatInput);
 
@@ -409,62 +294,67 @@ export default class LobbyScene extends Phaser.Scene {
     });
   }
 
-  addChatMessage(pseudo, text, color) {
-    const hexColor = "#" + color.toString(16).padStart(6, "0");
-    const y = this.chatLines.length * 26;
+  _addChatMessage(pseudo, text, color) {
+    const hex = "#" + (color || 0xffffff).toString(16).padStart(6, "0");
+    const y = this.chatLines.length * 24;
 
     const line = this.add.text(0, y, `${pseudo}: ${text}`, {
-      fontSize: "15px",
-      color: hexColor,
-      wordWrap: { width: 280 },
+      fontSize: "13px",
+      color: hex,
+      wordWrap: { width: 240 },
     });
 
     this.chatZone.add(line);
     this.chatLines.push(line);
 
-    // Max 8 lignes visibles
-    if (this.chatLines.length > 8) {
+    if (this.chatLines.length > 10) {
       this.chatLines[0].destroy();
       this.chatLines.shift();
-      this.chatLines.forEach((l, i) => l.setY(i * 26));
+      this.chatLines.forEach((l, i) => l.setY(i * 24));
     }
   }
 
-  _renderGlobalLeaderboard(board) {
-    // Nettoyer l'ancien si exists
-    if (this._lbObjects) {
-      this._lbObjects.forEach((o) => o.destroy());
-    }
-    this._lbObjects = [];
-
+  // =========================
+  // LEADERBOARD PANEL
+  // =========================
+  _createLeaderboardPanel() {
     const W = this.scale.width;
     const H = this.scale.height;
-    const x = W / 2 + 180;
-    const y = H * 0.28;
-    const rowH = 32;
-    const panelH = Math.min(board.length * rowH + 50, 300);
+    const x = W * 0.72;
+    const y = H * 0.22;
 
-    const bg = this.add
-      .rectangle(x, y, 280, panelH, 0x080810, 0.95)
-      .setOrigin(0.5, 0)
-      .setStrokeStyle(1, 0xffd700, 0.2);
-    this._lbObjects.push(bg);
-
-    const title = this.add
-      .text(x, y + 14, "🏅 CLASSEMENT GÉNÉRAL", {
-        fontSize: "13px",
-        color: "#ffd700",
-        fontStyle: "bold",
-        letterSpacing: 2,
+    this.add
+      .text(x, y - 24, "CLASSEMENT GÉNÉRAL", {
+        fontSize: "11px",
+        color: "#443322",
+        letterSpacing: 3,
       })
       .setOrigin(0.5, 0);
-    this._lbObjects.push(title);
+
+    this._lbPanelX = x;
+    this._lbPanelY = y;
+  }
+
+  _renderLeaderboard(board) {
+    if (this._lbObjects) this._lbObjects.forEach((o) => o.destroy());
+    this._lbObjects = [];
+
+    const x = this._lbPanelX;
+    const y = this._lbPanelY;
+    const rowH = 30;
+    const panelH = Math.min(board.length * rowH + 40, 280);
+
+    const bg = this.add
+      .rectangle(x, y, 260, panelH, 0x060408, 0.95)
+      .setOrigin(0.5, 0)
+      .setStrokeStyle(1, 0xff8c00, 0.15);
+    this._lbObjects.push(bg);
 
     if (board.length === 0) {
       const empty = this.add
-        .text(x, y + 45, "Aucune partie jouée", {
-          fontSize: "13px",
-          color: "#333355",
+        .text(x, y + 20, "Aucune partie jouée", {
+          fontSize: "12px",
+          color: "#332211",
         })
         .setOrigin(0.5, 0);
       this._lbObjects.push(empty);
@@ -474,18 +364,27 @@ export default class LobbyScene extends Phaser.Scene {
     const medals = ["🥇", "🥈", "🥉"];
 
     board.slice(0, 8).forEach((p, i) => {
-      const ry = y + 44 + i * rowH;
+      const ry = y + 12 + i * rowH;
       const rank = medals[i] || `${i + 1}.`;
+      const isMe = p.pseudo === this.myPseudo;
 
-      const row = this.add.text(x - 120, ry, `${rank}  ${p.pseudo}`, {
-        fontSize: "14px",
-        color: "#cccccc",
+      if (isMe) {
+        const highlight = this.add
+          .rectangle(x, ry + 10, 254, rowH - 2, 0xff8c00, 0.06)
+          .setOrigin(0.5, 0.5);
+        this._lbObjects.push(highlight);
+      }
+
+      const nameText = this.add.text(x - 110, ry, `${rank}  ${p.pseudo}`, {
+        fontSize: "13px",
+        color: isMe ? "#ff8c00" : "#888888",
+        fontStyle: isMe ? "bold" : "normal",
       });
-      this._lbObjects.push(row);
+      this._lbObjects.push(nameText);
 
       const pts = this.add
-        .text(x + 120, ry, `${p.totalScore} pts`, {
-          fontSize: "14px",
+        .text(x + 110, ry, `${p.totalScore}`, {
+          fontSize: "13px",
           color: "#ffd700",
           fontStyle: "bold",
         })
@@ -494,7 +393,6 @@ export default class LobbyScene extends Phaser.Scene {
     });
   }
 
-  // Nettoyer les inputs HTML quand on quitte la scène
   shutdown() {
     this.chatInput?.remove();
   }

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maze Cup — Top 100</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      min-height: 100%;
+      background: #0a0a12;
+      font-family: 'Inter', sans-serif;
+      color: #fff;
+    }
+
+    .bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,140,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,140,0,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative; z-index: 10;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .back {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: #554433; font-size: 12px; letter-spacing: 3px;
+      text-decoration: none; margin-bottom: 40px;
+      transition: color 0.2s;
+    }
+    .back:hover { color: #ff8c00; }
+
+    h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(28px, 6vw, 48px);
+      color: #ff8c00;
+      text-shadow: 0 0 30px rgba(255,140,0,0.3);
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #443322; font-size: 13px;
+      letter-spacing: 4px; margin-bottom: 32px;
+    }
+
+    /* SEARCH */
+    .search-bar {
+      display: flex; gap: 12px; margin-bottom: 24px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 12px 18px;
+      background: rgba(15,12,6,0.9);
+      border: 1px solid rgba(255,140,0,0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-bar input:focus { border-color: rgba(255,140,0,0.4); }
+    .search-bar input::placeholder { color: #332211; }
+
+    /* TRI */
+    .sort-btns {
+      display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+
+    .sort-btn {
+      padding: 6px 14px;
+      border: 1px solid rgba(255,140,0,0.2);
+      border-radius: 20px;
+      background: none;
+      color: #554433;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sort-btn.active, .sort-btn:hover {
+      border-color: #ff8c00;
+      color: #ff8c00;
+      background: rgba(255,140,0,0.05);
+    }
+
+    /* TABLE */
+    .leaderboard {
+      background: rgba(15,12,6,0.8);
+      border: 1px solid rgba(255,140,0,0.1);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .lb-header {
+      display: grid;
+      grid-template-columns: 60px 1fr 100px 100px 80px;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,140,0,0.1);
+      font-size: 10px;
+      color: #443322;
+      letter-spacing: 3px;
+    }
+
+    .lb-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 100px 100px 80px;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,140,0,0.04);
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row:hover { background: rgba(255,140,0,0.03); }
+    .lb-row.me { background: rgba(255,140,0,0.06); }
+
+    .rank {
+      font-family: 'Orbitron', monospace;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .rank-1 { color: #ffd700; }
+    .rank-2 { color: #c0c0c0; }
+    .rank-3 { color: #cd7f32; }
+    .rank-other { color: #332211; }
+
+    .player-name {
+      font-size: 15px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .player-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .score-total {
+      font-family: 'Orbitron', monospace;
+      font-size: 14px;
+      color: #ffd700;
+      font-weight: 700;
+    }
+
+    .score-best { font-size: 13px; color: #443322; }
+    .games { font-size: 12px; color: #332211; }
+
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #332211;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #554433;
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    /* PAGINATION */
+    .pagination {
+      display: flex; justify-content: center;
+      gap: 8px; margin-top: 24px;
+    }
+    .page-btn {
+      width: 36px; height: 36px;
+      border: 1px solid rgba(255,140,0,0.2);
+      border-radius: 8px;
+      background: none;
+      color: #554433;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .page-btn.active, .page-btn:hover {
+      border-color: #ff8c00;
+      color: #ff8c00;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="container">
+    <a class="back" href="/">← ACCUEIL</a>
+
+    <h1>TOP 100</h1>
+    <div class="subtitle">CLASSEMENT DES MEILLEURS JOUEURS</div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Rechercher un joueur..." />
+    </div>
+
+    <div class="sort-btns">
+      <button class="sort-btn active" data-sort="totalScore">SCORE TOTAL</button>
+      <button class="sort-btn" data-sort="bestScore">MEILLEUR SCORE</button>
+      <button class="sort-btn" data-sort="gamesPlayed">PARTIES JOUÉES</button>
+    </div>
+
+    <div class="leaderboard">
+      <div class="lb-header">
+        <span>RANG</span>
+        <span>JOUEUR</span>
+        <span>TOTAL</span>
+        <span>MEILLEUR</span>
+        <span>PARTIES</span>
+      </div>
+      <div id="lbBody">
+        <div class="loading">CHARGEMENT...</div>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script>
+    const SERVER = 'http://localhost:3000';
+    const PER_PAGE = 20;
+    let allData = [];
+    let filtered = [];
+    let currentSort = 'totalScore';
+    let currentPage = 1;
+
+    // Couleurs hex
+    const COLOR_MAP = {
+      '0x00ffff': '#00ffff', '0xff00ff': '#ff00ff',
+      '0xffff00': '#ffff00', '0x00ff88': '#00ff88',
+      '0xff8c00': '#ff8c00', '0xff4444': '#ff4444',
+      '0x4488ff': '#4488ff', '0xaa44ff': '#aa44ff',
+    };
+
+    // Mon pseudo
+    let myPseudo = null;
+    try {
+      const p = JSON.parse(localStorage.getItem('mazecup_profile'));
+      if (p) myPseudo = p.pseudo;
+    } catch {}
+
+    async function fetchLeaderboard() {
+      try {
+        const res = await fetch(`${SERVER}/leaderboard`);
+        allData = await res.json();
+        applyFilters();
+      } catch {
+        document.getElementById('lbBody').innerHTML =
+          '<div class="empty">IMPOSSIBLE DE CHARGER LE CLASSEMENT</div>';
+      }
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      filtered = allData
+        .filter(p => !query || p.pseudo.toLowerCase().includes(query))
+        .sort((a, b) => (b[currentSort] || 0) - (a[currentSort] || 0));
+
+      currentPage = 1;
+      render();
+    }
+
+    function render() {
+      const start = (currentPage - 1) * PER_PAGE;
+      const page = filtered.slice(start, start + PER_PAGE);
+      const body = document.getElementById('lbBody');
+
+      if (filtered.length === 0) {
+        body.innerHTML = '<div class="empty">AUCUN JOUEUR TROUVÉ</div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      const medals = ['🥇', '🥈', '🥉'];
+
+      body.innerHTML = page.map((p, i) => {
+        const globalRank = start + i + 1;
+        const rankStr = medals[globalRank - 1] || globalRank;
+        const rankClass = globalRank <= 3 ? `rank-${globalRank}` : 'rank-other';
+        const isMe = p.pseudo === myPseudo;
+        const colorHex = '#888888';
+
+        return `
+          <div class="lb-row ${isMe ? 'me' : ''}">
+            <span class="rank ${rankClass}">${rankStr}</span>
+            <span class="player-name">
+              <span class="player-dot" style="background:${colorHex}"></span>
+              ${p.pseudo}
+              ${isMe ? '<span style="font-size:10px;color:#ff8c00;margin-left:4px">● MOI</span>' : ''}
+            </span>
+            <span class="score-total">${p.totalScore} pts</span>
+            <span class="score-best">${p.bestScore} pts</span>
+            <span class="games">${p.gamesPlayed}</span>
+          </div>
+        `;
+      }).join('');
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const total = Math.ceil(filtered.length / PER_PAGE);
+      const pag = document.getElementById('pagination');
+
+      if (total <= 1) { pag.innerHTML = ''; return; }
+
+      let html = '';
+      for (let i = 1; i <= Math.min(total, 10); i++) {
+        html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+      }
+      pag.innerHTML = html;
+
+      pag.querySelectorAll('.page-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentPage = parseInt(btn.dataset.page);
+          render();
+          window.scrollTo(0, 0);
+        });
+      });
+    }
+
+    // Sort buttons
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSort = btn.dataset.sort;
+        applyFilters();
+      });
+    });
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+    fetchLeaderboard();
+  </script>
+</body>
+</html>

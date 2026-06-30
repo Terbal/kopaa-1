@@ -1,31 +1,261 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Maze Cup</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Maze Cup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0a0a12;
+      font-family: 'Inter', sans-serif;
+      color: #ffffff;
+      touch-action: none;
+    }
+    .bg {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(255,140,0,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(255,140,0,0.03) 0%, transparent 50%),
+        #0a0a12;
+    }
+    .grid {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,140,0,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,140,0,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+    .container {
+      position: relative; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100vh; padding: 20px;
+    }
+    .logo {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(36px, 8vw, 72px);
+      font-weight: 900;
+      color: #ff8c00;
+      text-shadow: 0 0 20px rgba(255,140,0,0.6), 0 0 60px rgba(255,140,0,0.2);
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+    }
+    .tagline {
+      font-size: clamp(11px, 2vw, 14px);
+      color: #554433;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+    .card {
+      background: rgba(15,12,6,0.95);
+      border: 1px solid rgba(255,140,0,0.2);
+      border-radius: 16px;
+      padding: 36px 40px;
+      width: min(420px, 92vw);
+      box-shadow: 0 0 40px rgba(255,140,0,0.05), inset 0 1px 0 rgba(255,140,0,0.1);
+    }
+    .card-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 13px;
+      color: #664422;
+      letter-spacing: 4px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .profile-display {
+      display: none;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .avatar-circle {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,140,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+      font-family: 'Orbitron', monospace;
+      flex-shrink: 0;
+    }
+    .profile-info { flex: 1; }
+    .profile-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 18px; color: #ff8c00; font-weight: 700;
+    }
+    .profile-sub { font-size: 12px; color: #443322; margin-top: 2px; }
+    .btn-change {
+      background: none;
+      border: 1px solid #332211;
+      color: #554433; font-size: 11px;
+      padding: 4px 10px; border-radius: 6px;
+      cursor: pointer; letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .btn-change:hover { border-color: #ff8c00; color: #ff8c00; }
+    .form-group { margin-bottom: 16px; }
+    label {
+      display: block; font-size: 11px;
+      color: #554433; letter-spacing: 3px; margin-bottom: 8px;
+    }
+    input[type="text"] {
+      width: 100%; padding: 14px 18px;
+      background: #060408;
+      border: 1px solid rgba(255,140,0,0.15);
+      border-radius: 10px; color: #ffffff;
+      font-size: 16px; font-family: 'Orbitron', monospace;
+      letter-spacing: 2px; outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: rgba(255,140,0,0.5);
+      box-shadow: 0 0 12px rgba(255,140,0,0.08);
+    }
+    input::placeholder { color: #332211; letter-spacing: 1px; }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,140,0,0.2), transparent);
+      margin: 20px 0;
+    }
+    .btn-primary {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, #ff8c00, #cc6600);
+      color: #000; border: none; border-radius: 10px;
+      font-family: 'Orbitron', monospace;
+      font-size: 14px; font-weight: 700;
+      letter-spacing: 3px; cursor: pointer;
+      margin-top: 8px; transition: all 0.2s;
+      box-shadow: 0 4px 20px rgba(255,140,0,0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #ffaa00, #ff8c00);
+      box-shadow: 0 4px 30px rgba(255,140,0,0.5);
+      transform: translateY(-1px);
+    }
+    .nav-links { display: flex; gap: 32px; margin-top: 32px; }
+    .nav-link {
+      font-size: 12px; color: #443322;
+      letter-spacing: 3px; text-decoration: none;
+      text-transform: uppercase; transition: color 0.2s;
+    }
+    .nav-link:hover { color: #ff8c00; }
+    @media (max-width: 480px) {
+      .card { padding: 28px 24px; }
+      .nav-links { gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="grid"></div>
+  <div class="container">
+    <div class="logo">MAZE CUP</div>
+    <div class="tagline">mémorise · survive · gagne</div>
+
+    <div class="card">
+      <div class="card-title">REJOINDRE UNE PARTIE</div>
+
+      <!-- Profil existant -->
+      <div class="profile-display" id="profileDisplay">
+        <div class="avatar-circle" id="avatarCircle">?</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profileName">-</div>
+          <div class="profile-sub">Profil enregistré</div>
+        </div>
+        <button class="btn-change" id="btnChange">CHANGER</button>
+      </div>
+
+      <!-- Formulaire — pseudo uniquement, pas de color picker -->
+      <div id="profileForm">
+        <div class="form-group">
+          <label>TON PSEUDO</label>
+          <input type="text" id="pseudoInput"
+            placeholder="Entre ton pseudo..." maxlength="16" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn-primary" id="btnJoin">▶ &nbsp; REJOINDRE</button>
+    </div>
+
+    <div class="nav-links">
+      <a class="nav-link" href="/pages/rules.html">RÈGLES</a>
+      <a class="nav-link" href="/pages/top100.html">TOP 100</a>
+    </div>
+  </div>
+
+  <script>
+    const PROFILE_KEY = 'mazecup_profile';
+
+    function loadProfile() {
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+
+    function saveProfile(pseudo) {
+      // Couleur aléatoire assignée une fois et mémorisée
+      const existing = loadProfile();
+      const color = existing?.color || null; // sera assigné par le serveur
+      localStorage.setItem(PROFILE_KEY, JSON.stringify({ pseudo, color }));
+    }
+
+    function showExistingProfile(profile) {
+      document.getElementById('profileDisplay').style.display = 'flex';
+      document.getElementById('profileForm').style.display = 'none';
+      document.getElementById('profileName').textContent = profile.pseudo;
+      const avatar = document.getElementById('avatarCircle');
+      avatar.textContent = profile.pseudo[0].toUpperCase();
+      avatar.style.background = 'rgba(255,140,0,0.1)';
+      avatar.style.color = '#ff8c00';
+      avatar.style.borderColor = 'rgba(255,140,0,0.4)';
+    }
+
+    function showForm() {
+      document.getElementById('profileDisplay').style.display = 'none';
+      document.getElementById('profileForm').style.display = 'block';
+    }
+
+    const profile = loadProfile();
+    if (profile) showExistingProfile(profile);
+
+    document.getElementById('btnChange').addEventListener('click', () => {
+      const p = loadProfile();
+      if (p) document.getElementById('pseudoInput').value = p.pseudo;
+      showForm();
+    });
+
+    document.getElementById('btnJoin').addEventListener('click', () => {
+      const existing = loadProfile();
+      let pseudo;
+
+      if (existing && document.getElementById('profileForm').style.display === 'none') {
+        pseudo = existing.pseudo;
+      } else {
+        pseudo = document.getElementById('pseudoInput').value.trim();
+        if (!pseudo) {
+          document.getElementById('pseudoInput').style.borderColor = 'rgba(255,0,0,0.5)';
+          document.getElementById('pseudoInput').placeholder = 'Choisis un pseudo !';
+          return;
+        }
+        saveProfile(pseudo);
       }
 
-      html, body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden; /* ← supprime les scrollbars */
-        background: #0a0a12;
-        touch-action: none; /* ← empêche le scroll tactile */
-      }
+      // Pas de couleur ici — assignée par le serveur
+      sessionStorage.setItem('mazecup_session', JSON.stringify({ pseudo }));
+      window.location.href = '/lobby.html';
+    });
 
-      canvas {
-        display: block;
-        touch-action: none;
-      }
-    </style>
-  </head>
-  <body>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+    document.getElementById('pseudoInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btnJoin').click();
+    });
+  </script>
+</body>
 </html>

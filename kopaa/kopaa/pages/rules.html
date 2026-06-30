@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maze Cup — Règles</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      min-height: 100%;
+      background: #0a0a12;
+      font-family: 'Inter', sans-serif;
+      color: #ffffff;
+    }
+
+    .bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,140,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,140,0,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative; z-index: 10;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .back {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: #554433;
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-decoration: none;
+      margin-bottom: 40px;
+      transition: color 0.2s;
+    }
+    .back:hover { color: #ff8c00; }
+
+    h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(28px, 6vw, 48px);
+      color: #ff8c00;
+      text-shadow: 0 0 30px rgba(255,140,0,0.3);
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #443322;
+      font-size: 13px;
+      letter-spacing: 4px;
+      margin-bottom: 48px;
+    }
+
+    .section {
+      background: rgba(15,12,6,0.8);
+      border: 1px solid rgba(255,140,0,0.1);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 13px;
+      color: #ff8c00;
+      letter-spacing: 3px;
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,140,0,0.15);
+    }
+
+    p { color: #aaaaaa; line-height: 1.7; font-size: 15px; }
+
+    ul { list-style: none; margin-top: 12px; }
+    ul li {
+      color: #aaaaaa;
+      font-size: 14px;
+      line-height: 1.8;
+      padding-left: 16px;
+      position: relative;
+    }
+    ul li::before {
+      content: '▸';
+      position: absolute; left: 0;
+      color: #ff8c00;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    .badge-green { background: rgba(0,255,136,0.15); color: #00ff88; }
+    .badge-red { background: rgba(255,68,68,0.15); color: #ff4444; }
+    .badge-orange { background: rgba(255,140,0,0.15); color: #ff8c00; }
+
+    .score-table {
+      width: 100%; border-collapse: collapse; margin-top: 12px;
+    }
+    .score-table td {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,140,0,0.06);
+      font-size: 14px;
+      color: #aaaaaa;
+    }
+    .score-table td:last-child { text-align: right; color: #ffd700; font-weight: 600; }
+    .score-table tr:last-child td { border-bottom: none; }
+
+    .btn-play {
+      display: block;
+      text-align: center;
+      margin: 40px auto 0;
+      width: fit-content;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, #ff8c00, #cc6600);
+      color: #000;
+      font-family: 'Orbitron', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      border-radius: 10px;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(255,140,0,0.3);
+      transition: all 0.2s;
+    }
+    .btn-play:hover {
+      box-shadow: 0 4px 30px rgba(255,140,0,0.5);
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="container">
+    <a class="back" href="/">← ACCUEIL</a>
+
+    <h1>RÈGLES DU JEU</h1>
+    <div class="subtitle">COMMENT JOUER À MAZE CUP</div>
+
+    <div class="section">
+      <div class="section-title">🧠 PRINCIPE</div>
+      <p>Maze Cup est un jeu de mémoire et de compétition. Tu dois mémoriser le labyrinthe pendant la phase d'observation, puis naviguer dans le brouillard pour atteindre la coupe centrale avant tes adversaires.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">⏱ DÉROULEMENT</div>
+      <ul>
+        <li>Le labyrinthe est entièrement visible pendant <strong style="color:#ff8c00">3 secondes</strong></li>
+        <li>Ensuite, le brouillard de guerre s'active</li>
+        <li>Tu ne vois qu'une zone limitée autour de toi</li>
+        <li>Premier à toucher la coupe centrale → victoire</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🧪 OBJETS SPÉCIAUX</div>
+      <ul>
+        <li><span class="badge badge-green">POTION FANTÔME 👻</span> Traverse les autres joueurs pendant 60 sec. S'annule si quelqu'un ramasse la potion mur.</li>
+        <li style="margin-top:8px"><span class="badge badge-orange">POTION MUR 🧱</span> Traverse les murs pendant 10 sec. Si l'effet expire dans un mur : bloqué 10 sec !</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">👁 COUP D'ŒIL</div>
+      <p>Révèle la map entière pendant 1 seconde. Cooldown de 30 secondes entre chaque utilisation.</p>
+      <ul style="margin-top:12px">
+        <li><span class="badge badge-red">-15 pts</span> par utilisation</li>
+        <li><span class="badge badge-green">+25 pts</span> bonus si tu ne l'utilises jamais</li>
+      </ul>
+    </div>
+
+    <!-- <div class="section">
+      <div class="section-title">🏆 SCORING</div>
+      <table class="score-table">
+        <tr><td>🥇 1er (distance finale)</td><td>100 pts ÷ 1</td></tr>
+        <tr><td>🥈 2ème</td><td>60 pts ÷ 2</td></tr>
+        <tr><td>🥉 3ème</td><td>40 pts ÷ 3</td></tr>
+        <tr><td>4ème et au-delà</td><td>0 pts</td></tr>
+        <tr><td>✅ Sans coup d'œil</td><td>+25 pts</td></tr>
+        <tr><td>✅ Sans potion fantôme</td><td>+20 pts</td></tr>
+        <tr><td>✅ Sans potion mur (top 3)</td><td>+30 pts</td></tr>
+        <tr><td>⚡ Bonus vitesse (< 3 min)</td><td>jusqu'à +60 pts</td></tr>
+      </table>
+    </div> -->
+
+    <a class="btn-play" href="/">▶ &nbsp; JOUER</a>
+  </div>
+</body>
+</html>

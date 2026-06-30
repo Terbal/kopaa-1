@@ -21,8 +21,8 @@ export default class SpawnSystem {
       // CASE LIBRE
       // =========================
       if (mazeData[row][col] === 0) {
-        x = col * this.tileSize;
-        y = row * this.tileSize;
+        x = col * this.tileSize + this.tileSize / 2;
+        y = row * this.tileSize + this.tileSize / 2;
 
         valid = true;
       }

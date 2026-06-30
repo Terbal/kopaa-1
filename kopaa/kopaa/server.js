@@ -10,6 +10,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEADERBOARD_PATH = path.join(__dirname, "leaderboard.json");
 
 const app = express();
+
+app.use(express.json());
+
+// Route REST pour le top 100
+app.get("/leaderboard", (req, res) => {
+  res.json(loadLeaderboard());
+});
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
