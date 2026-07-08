@@ -19,7 +19,7 @@ const config = {
   },
   physics: {
     default: "arcade",
-    arcade: { debug: false },
+    arcade: { debug: true },
   },
   scene: [LobbyScene, GameScene],
 };

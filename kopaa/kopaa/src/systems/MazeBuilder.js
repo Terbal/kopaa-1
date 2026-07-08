@@ -94,13 +94,11 @@ export default class MazeBuilder {
         g.setDepth(1);
 
         // Collider invisible centré
-        const wall = this.scene.add.rectangle(
-          x + ts / 2,
-          y + ts / 2,
+        const wall = this.scene.add.zone(
+          x + ts / 2, // ← centrer X
+          y + ts / 2, // ← centrer Y
           ts,
           ts,
-          0x000000,
-          0,
         );
         this.scene.physics.add.existing(wall, true);
         this.walls.add(wall);
