@@ -760,12 +760,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   addRemotePlayer(p) {
-  if (!p?.id || this.remotePlayers[p.id]) return;
+    if (!p?.id || this.remotePlayers[p.id]) return;
 
-  const sprite = new Player(this, p.x || 500, p.y || 500, p.color || 0xffffff);
-  this.remotePlayers[p.id] = sprite;
-  this.collisionSystem.playerVsWalls(sprite, this.walls);
-}
+    const sprite = new Player(
+      this,
+      p.x || 500,
+      p.y || 500,
+      p.color || 0xffffff,
+    );
+    this.remotePlayers[p.id] = sprite;
+    this.collisionSystem.playerVsWalls(sprite, this.walls);
+  }
 
   winGame() {
     if (this.isGameFinished) return;

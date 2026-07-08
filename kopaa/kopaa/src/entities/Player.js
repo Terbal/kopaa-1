@@ -12,10 +12,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     this.setScale(0.17);
     this.body.setSize(70, 70); // hitbox plus petite que le sprite
-    this.body.setOffset(
-      (this.width - 70) / 2,
-      (this.height - 70) / 2
-    );
+    this.body.setOffset((this.width - 70) / 2, (this.height - 70) / 2);
     this.setDepth(10);
 
     // Teinte couleur joueur
