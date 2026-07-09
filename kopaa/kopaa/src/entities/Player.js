@@ -10,9 +10,19 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.speed = 220;
     this.color = color;
     this.setCollideWorldBounds(true);
-    this.setDisplaySize(32, 32);
-    this.body.setSize(32, 32);
-    this.body.setOffset((this.width - 32) / 2, (this.height - 32) / 2);
+    this.setDisplaySize(48, 48);
+
+    console.log("[Player] width:", this.width, "height:", this.height);
+
+    // =============================================
+    // true en 3ème paramètre = centrage automatique
+    // Les valeurs sont en pixels de texture native
+    // On prend 80% de la taille native pour la hitbox
+    // =============================================
+    this.body.setSize(220, 270, true);
+    this.body.debugShowBody = true;
+    this.body.debugBodyColor = 0xff0000;
+
     this.setDepth(10);
     this.setTint(color);
 
@@ -20,9 +30,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this._vx = 0;
     this._vy = 0;
 
-    // =========================
-    // TRAÎNÉE — copies fantômes
-    // =========================
     this._ghosts = [];
     this._ghostCount = 5;
     this._ghostTimer = 0;
@@ -30,16 +37,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     for (let i = 0; i < this._ghostCount; i++) {
       const ghost = scene.add
         .image(x, y, "player_front")
-        .setDisplaySize(32, 32)
+        .setDisplaySize(48, 48)
         .setTint(color)
         .setAlpha(0)
         .setDepth(9 - i);
       this._ghosts.push({ img: ghost, x, y, key: "player_front" });
     }
 
-    // =========================
-    // TRAÎNÉE — particules
-    // =========================
     this._particles = scene.add.particles(0, 0, "player_front", {
       scale: { start: 0.05, end: 0 },
       alpha: { start: 0.3, end: 0 },
@@ -56,7 +60,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this._vx = 0;
     this._vy = 0;
 
-    // Joystick mobile
     if (joystick?.isActive) {
       const { dx, dy } = joystick.getDirection();
       if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
@@ -65,7 +68,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Clavier
     if (!this._vx && !this._vy) {
       if (cursors.left.isDown) {
         this._vx = -this.speed;
@@ -80,7 +82,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setVelocity(this._vx, this._vy);
 
-    // Direction + sprite
     const moving = Math.abs(this._vx) > 10 || Math.abs(this._vy) > 10;
 
     if (moving) {
@@ -90,10 +91,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       } else {
         newDir = this._vy > 0 ? "front" : "back";
       }
-
       if (newDir !== this._dir) {
         this._dir = newDir;
         this.setTexture(`player_${newDir}`);
+        // Réappliquer après changement de texture
+        this.body.setSize(220, 270, true);
       }
     }
 
@@ -105,7 +107,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   updateGhosts(delta) {
     this._ghostTimer += delta;
-
     const moving = Math.abs(this._vx) > 10 || Math.abs(this._vy) > 10;
 
     if (!moving) {
@@ -117,7 +118,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (this._ghostTimer > 30) {
       this._ghostTimer = 0;
-
       for (let i = this._ghosts.length - 1; i > 0; i--) {
         this._ghosts[i].x = this._ghosts[i - 1].x;
         this._ghosts[i].y = this._ghosts[i - 1].y;
@@ -129,7 +129,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this._ghosts.forEach((g, i) => {
-      const size = 32 * (1 - i * 0.04);
+      const size = 48 * (1 - i * 0.04);
       const alpha = (1 - i / this._ghosts.length) * 0.35;
       g.img.setPosition(g.x, g.y);
       g.img.setTexture(g.key);
