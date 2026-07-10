@@ -87,6 +87,15 @@ export default class GameScene extends Phaser.Scene {
 
     // Couleur du joueur depuis le profil lobby
     const myColor = this._lobbyPlayers[myId]?.color || 0xff8c00;
+
+    // ← log ICI, après la définition
+    console.log("[GameScene] myId:", myId);
+    console.log("[GameScene] myColor:", myColor);
+    console.log(
+      "[GameScene] lobbyPlayers:",
+      JSON.stringify(this._lobbyPlayers),
+    );
+
     this.player = new Player(this, spawn.x, spawn.y, myColor);
     this.collisionSystem.playerVsWalls(this.player, this.walls);
 

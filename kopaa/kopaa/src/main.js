@@ -9,7 +9,7 @@ export const IS_MOBILE =
   ) || window.innerWidth < 768;
 
 const config = {
-  type: Phaser.CANVAS,
+  type: Phaser.AUTO,
   width: window.innerWidth,
   height: window.innerHeight,
   backgroundColor: "#0a0a12",
@@ -19,7 +19,7 @@ const config = {
   },
   physics: {
     default: "arcade",
-    arcade: { debug: true },
+    arcade: { debug: false },
   },
   scene: [LobbyScene, GameScene],
 };

@@ -1,10 +1,10 @@
 [
   {
     "pseudo": "Patmol_",
-    "totalScore": 1393,
-    "gamesPlayed": 10,
+    "totalScore": 1699,
+    "gamesPlayed": 12,
     "bestScore": 205,
-    "lastSeen": 1782862208916
+    "lastSeen": 1783636535134
   },
   {
     "pseudo": "Charlie",
@@ -12,5 +12,12 @@
     "gamesPlayed": 10,
     "bestScore": 200,
     "lastSeen": 1782862208916
+  },
+  {
+    "pseudo": "jojo",
+    "totalScore": 126,
+    "gamesPlayed": 2,
+    "bestScore": 64,
+    "lastSeen": 1783636535134
   }
 ]

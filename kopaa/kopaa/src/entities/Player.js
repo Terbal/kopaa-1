@@ -12,19 +12,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     this.setDisplaySize(48, 48);
 
-    console.log("[Player] width:", this.width, "height:", this.height);
-
-    // =============================================
-    // true en 3ème paramètre = centrage automatique
-    // Les valeurs sont en pixels de texture native
-    // On prend 80% de la taille native pour la hitbox
-    // =============================================
     this.body.setSize(220, 270, true);
     this.body.debugShowBody = true;
     this.body.debugBodyColor = 0xff0000;
 
     this.setDepth(10);
     this.setTint(color);
+    console.log("[Player] color:", color.toString(16), "tint appliqué");
+
+    // =============================================
+    // ANNEAU COLORÉ autour du joueur
+    // Depth 1001 = au-dessus du fog
+    // =============================================
+    this._colorRing = scene.add.graphics();
+    this._colorRing.lineStyle(3, color, 1);
+    this._colorRing.strokeCircle(0, 0, 22);
+    this._colorRing.setDepth(1001);
 
     this._dir = "front";
     this._vx = 0;
@@ -38,7 +41,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const ghost = scene.add
         .image(x, y, "player_front")
         .setDisplaySize(48, 48)
-        .setTint(color)
         .setAlpha(0)
         .setDepth(9 - i);
       this._ghosts.push({ img: ghost, x, y, key: "player_front" });
@@ -82,6 +84,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setVelocity(this._vx, this._vy);
 
+    // Mettre à jour position de l'anneau
+    this._colorRing.setPosition(this.x, this.y);
+
     const moving = Math.abs(this._vx) > 10 || Math.abs(this._vy) > 10;
 
     if (moving) {
@@ -94,7 +99,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       if (newDir !== this._dir) {
         this._dir = newDir;
         this.setTexture(`player_${newDir}`);
-        // Réappliquer après changement de texture
+        this.setTint(this.color);
         this.body.setSize(220, 270, true);
       }
     }
@@ -133,12 +138,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       const alpha = (1 - i / this._ghosts.length) * 0.35;
       g.img.setPosition(g.x, g.y);
       g.img.setTexture(g.key);
+      g.img.setTint(this.color);
       g.img.setAlpha(alpha);
       g.img.setDisplaySize(size, size);
     });
   }
 
   destroy() {
+    this._colorRing.destroy();
     this._ghosts.forEach((g) => g.img.destroy());
     this._particles.destroy();
     super.destroy();
